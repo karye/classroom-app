@@ -11,11 +11,11 @@ function App() {
   const [loadingDetails, setLoadingDetails] = useState({})
   const [assignmentFilters, setAssignmentFilters] = useState({})
   const [expandedTopics, setExpandedTopics] = useState({})
-  const [sortConfig, setSortConfig] = useState({})
-  const [selectedStudent, setSelectedStudent] = useState(null)
-
-  axios.defaults.withCredentials = true;
-
+    const [sortConfig, setSortConfig] = useState({}) 
+    const [selectedStudent, setSelectedStudent] = useState(null)
+    const [lastUpdated, setLastUpdated] = useState({}) // { [courseId]: string }
+  
+    axios.defaults.withCredentials = true;
   useEffect(() => {
     checkLoginStatus();
   }, [])
@@ -73,6 +73,9 @@ function App() {
             try {
                 const parsed = JSON.parse(cached);
                 setCourseDetails(prev => ({ ...prev, [courseId]: parsed.data }));
+                if (parsed.timestamp) {
+                    setLastUpdated(prev => ({ ...prev, [courseId]: new Date(parsed.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
+                }
                 return; 
             } catch (e) {
                 console.warn("Cache parse failed", e);
@@ -84,11 +87,13 @@ function App() {
     setLoadingDetails(prev => ({ ...prev, [courseId]: true }));
     try {
       const res = await axios.get(`/api/courses/${courseId}/details`);
+      const now = Date.now();
       setCourseDetails(prev => ({ ...prev, [courseId]: res.data }));
+      setLastUpdated(prev => ({ ...prev, [courseId]: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
       
       // 3. Save Cache
       localStorage.setItem(cacheKey, JSON.stringify({
-          timestamp: Date.now(),
+          timestamp: now,
           data: res.data
       }));
     } catch (err) {
@@ -401,6 +406,12 @@ function App() {
                         >
                             <i className={`bi bi-arrow-clockwise ${loadingDetails[selectedCourseId] ? 'spinner-border spinner-border-sm' : ''}`}></i>
                         </button>
+                        
+                        {lastUpdated[selectedCourseId] && (
+                            <span className="small text-muted" style={{ fontSize: '0.7rem' }}>
+                                Uppdaterad: {lastUpdated[selectedCourseId]}
+                            </span>
+                        )}
                         
                         <button 
                             onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)}
