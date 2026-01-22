@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "axios": "^1.13.2",
+    "bootstrap": "^5.3.2",
+    "bootstrap-icons": "^1.11.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
