@@ -2,9 +2,13 @@ services:
   backend:
     build: ./backend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     env_file:
       - ./backend/.env
+    environment:
+      - PORT=3000
+    volumes:
+      - ./logs/backend:/app/logs
     restart: always
 
   frontend:
@@ -13,4 +17,6 @@ services:
       - "8080:80"
     depends_on:
       - backend
+    volumes:
+      - ./logs/frontend:/var/log/nginx
     restart: always

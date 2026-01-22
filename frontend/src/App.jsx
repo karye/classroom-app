@@ -20,7 +20,7 @@ function App() {
 
   const checkLoginStatus = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/api/user');
+      const res = await axios.get('/api/user');
       setIsLoggedIn(res.data.loggedIn);
       if (res.data.loggedIn) {
         fetchCourses();
@@ -34,7 +34,7 @@ function App() {
 
   const fetchCourses = async () => {
     try {
-      const res = await axios.get('http://localhost:3000/api/courses');
+      const res = await axios.get('/api/courses');
       setCourses(res.data);
     } catch (err) {
       console.error("Failed to fetch courses", err);
@@ -67,7 +67,7 @@ function App() {
 
     setLoadingDetails(prev => ({ ...prev, [courseId]: true }));
     try {
-      const res = await axios.get(`http://localhost:3000/api/courses/${courseId}/details`);
+      const res = await axios.get(`/api/courses/${courseId}/details`);
       setCourseDetails(prev => ({ ...prev, [courseId]: res.data }));
     } catch (err) {
       console.error(`Failed to fetch details for course ${courseId}`, err);
@@ -101,12 +101,12 @@ function App() {
   }
 
   const handleLogin = () => {
-    window.location.href = 'http://localhost:3000/auth/google';
+    window.location.href = '/auth/google';
   }
 
   const handleLogout = async () => {
       try {
-          await axios.post('http://localhost:3000/api/logout');
+          await axios.post('/api/logout');
           setIsLoggedIn(false);
           setCourses([]);
           setCourseDetails({});

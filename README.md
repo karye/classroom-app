@@ -1,56 +1,112 @@
 # Google Classroom Matrix Dashboard
 
-En kraftfull och överskådlig webbapplikation för lärare att följa elevers framsteg i Google Classroom. Appen sammanställer data från kurser, uppgifter och inlämningar i en kompakt matrisvy.
+En fullstack webbapplikation för lärare att visualisera och följa elevers framsteg i Google Classroom. Appen presenterar data i en överskådlig matris (Heatmap) där rader representerar elever och kolumner representerar uppgifter, grupperade efter ämnen (Topics).
 
-## Huvudfunktioner
+## 🚀 Huvudfunktioner
 
-*   **Google-inloggning:** Säker inloggning med Google-konto för att komma åt dina Classroom-kurser.
-*   **Kursmatris:** Se alla elever (rader) och uppgifter (kolumner) i en tydlig tabell.
-*   **Ämnesgruppering:** Uppgifter grupperas automatiskt efter ämnen (Topics) från Classroom.
-*   **Betygslogik (Max-betyg):** Appen räknar ut det högsta betyget en elev fått inom ett specifikt ämne, vilket gör det enkelt att se om ett kunskapsmål är uppnått.
-*   **Kollapsbara Ämnen:** Minimera ämnesgrupper för att bara se resultatet (Max-betyg), eller expandera för att se detaljer för varje enskild uppgift.
-*   **Färgkodning:** Cellerna färgkodas automatiskt baserat på betyget (0-20 skala):
-    *   🔴 **Röd (< 10):** Ej godkänt
-    *   🟢 **Ljusgrön (10-13):** Godkänt
-    *   🟢 **Mellangrön (14-15):** Bra
-    *   🌟 **Mörkgrön (16-20):** Utmärkt
-*   **Sök & Filtrera:** Filtrera snabbt fram specifika uppgifter i tabellen.
-*   **Live-uppdatering:** En dedikerad uppdateringsknapp per kurs hämtar den senaste datan direkt från Google Classroom.
+*   **Matrisvy:** Samlad vy av alla elevers resultat i en kurs.
+*   **Ämnesgruppering:** Uppgifter grupperas automatiskt under sina Classroom-ämnen.
+*   **Max-betyg:** Beräknar automatiskt högsta uppnådda betyg inom ett ämne/grupp.
+*   **Dynamisk Expandering:** Visa/dölj detaljerade uppgifter per ämne för att minska "brus".
+*   **Färgkodning:**
+    *   🔴 **< 10:** Ej godkänt
+    *   🟢 **10-13:** Godkänt (E)
+    *   🟢 **14-15:** Väl Godkänt (C)
+    *   🌟 **16-20:** Mycket Väl Godkänt (A)
+*   **Live Data:** Hämtar data direkt från Google Classroom API.
+*   **Sökfilter:** Filtrera uppgifter i realtid.
 
-## Teknikstack
+## 🛠 Teknikstack
 
-*   **Frontend:** React (Vite), Axios för API-anrop.
-*   **Backend:** Node.js, Express.
-*   **API:** Google Classroom API (v1) via `googleapis`.
-*   **Autentisering:** OAuth2 med sessioner via `cookie-session`.
+Projektet är containeriserat med Docker för enkel driftsättning.
 
-## Installation & Uppstart
+*   **Frontend:** React (Vite), Nginx (Webbserver & Reverse Proxy).
+*   **Backend:** Node.js, Express, Google APIs.
+*   **Infrastruktur:** Docker & Docker Compose.
+*   **Loggning:** Filbaserad loggning för både access- och applikationsloggar.
 
-### Förutsättningar
-*   Ett projekt i [Google Cloud Console](https://console.cloud.google.com/) med Classroom API aktiverat.
-*   OAuth 2.0-klient-ID och klienthemlighet.
+## ⚙️ Förberedelser (Google Cloud)
 
-### Backend
-1. Gå till `backend/`-mappen.
-2. Skapa en `.env`-fil med följande innehåll:
-   ```env
-   CLIENT_ID=ditt_client_id
-   CLIENT_SECRET=din_client_secret
-   REDIRECT_URI=http://localhost:3000/auth/google/callback
-   ```
-3. Kör `npm install`.
-4. Starta med `node server.js`.
+För att appen ska fungera krävs ett projekt i Google Cloud Platform (GCP).
 
-### Frontend
-1. Gå till `frontend/`-mappen.
-2. Kör `npm install`.
-3. Starta med `npm run dev`.
-4. Öppna [http://localhost:5173](http://localhost:5173) i din webbläsare.
+1.  Skapa ett projekt på [Google Cloud Console](https://console.cloud.google.com/).
+2.  Aktivera **Google Classroom API**.
+3.  Gå till **APIs & Services > Credentials** och skapa ett **OAuth 2.0 Client ID**.
+4.  Konfigurera **Authorized JavaScript origins**:
+    *   `http://localhost:8080` (för lokal körning)
+    *   `http://DIN-IP-ADRESS.nip.io:8080` (för nätverksåtkomst, t.ex. `http://10.151.168.5.nip.io:8080`)
+5.  Konfigurera **Authorized redirect URIs**:
+    *   `http://localhost:8080/auth/google/callback`
+    *   `http://DIN-IP-ADRESS.nip.io:8080/auth/google/callback`
 
-## Användning
+> **OBS:** Google tillåter inte rena IP-adresser som Redirect URI (t.ex. `http://192.168.1.5`). Använd tjänsten `nip.io` (t.ex. `10.151.168.5.nip.io`) eller ett riktigt domännamn.
 
-1. Logga in med ditt Google-konto (lärare).
-2. Välj en kurs i listan.
-3. Klicka på **"Visa Matris"** för att se elevernas resultat.
-4. Klicka på **[+]** vid ett ämne för att se alla underliggande uppgifter.
-5. Använd **"Uppdatera"**-knappen om du har gjort ändringar direkt i Google Classroom som du vill se direkt i matrisen.
+## 📦 Installation & Körning
+
+### 1. Klona och konfigurera
+Skapa en fil `.env` i mappen `backend/`:
+
+```bash
+# backend/.env
+CLIENT_ID=DITT_GOOGLE_CLIENT_ID
+CLIENT_SECRET=DIN_GOOGLE_CLIENT_SECRET
+# CLIENT_ORIGIN kan utelämnas, hanteras automatiskt.
+# REDIRECT_URI ska vara bortkommenterad för att stödja dynamiska hosts.
+```
+
+### 2. Starta med Docker
+Från rotmappen (där `docker-compose.yml` ligger):
+
+```bash
+# Bygg och starta i bakgrunden
+docker-compose up -d --build
+```
+
+Appen är nu tillgänglig på **port 8080** (via Nginx som proxar till backend).
+*   Lokal åtkomst: [http://localhost:8080](http://localhost:8080)
+*   Nätverksåtkomst: `http://<DIN-IP>.nip.io:8080`
+
+### 3. Loggar
+Loggar sparas persistent i mappen `logs/` i projektets rot:
+*   `logs/backend/server.log`: Applikationsloggar och fel från Node.js.
+*   `logs/frontend/access.log`: Nginx trafiklogg.
+*   `logs/frontend/error.log`: Nginx fellogg.
+
+### 4. Uppdatera appen
+Om du ändrar kod eller konfiguration:
+
+```bash
+docker-compose down
+docker-compose up -d --build
+```
+
+## 📁 Projektstruktur
+
+```
+.
+├── docker-compose.yml   # Orkestrering av tjänster
+├── logs/                # Mapp för loggfiler (skapas automatiskt)
+├── backend/             # Node.js API
+│   ├── Dockerfile
+│   ├── server.js        # Huvudlogik och API-endpoints
+│   └── .env             # Hemligheter (skapa denna!)
+└── frontend/            # React App
+    ├── Dockerfile
+    ├── nginx.conf       # Nginx-konfiguration för proxy
+    ├── vite.config.js
+    └── src/             # React källkod
+```
+
+## ❓ Felsökning
+
+**Fel: `redirect_uri_mismatch`**
+*   Kontrollera att adressen i webbläsaren stämmer EXAKT med vad som står i Google Cloud Console under "Authorized redirect URIs".
+*   Om du använder `.nip.io`, se till att du inte glömt portnumret (`:8080`) i webbläsaren.
+*   Se till att `REDIRECT_URI` är **bortkommenterad** i `backend/.env` så servern kan anpassa sig dynamiskt.
+
+**Fel: Inloggningen loopar bara**
+*   Detta kan bero på att cookies inte sparas. Se till att du inte kör i inkognitoläge som blockerar tredjepartscookies om backend och frontend ligger på olika domäner (ej fallet här, men bra att veta).
+
+**Fel: "Inga kurser hittades"**
+*   Kontrollera att det konto du loggar in med faktiskt är lärare för kurser i Classroom.
+*   Kontrollera backend-loggen (`logs/backend/server.log`) för eventuella felmeddelanden från Google API.

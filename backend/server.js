@@ -3,14 +3,61 @@ const { google } = require('googleapis');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const cookieSession = require('cookie-session');
+const fs = require('fs');
+const path = require('path');
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+app.set('trust proxy', true);
 
+// --- Logging Setup ---
+const LOG_DIR = path.join(__dirname, 'logs');
+if (!fs.existsSync(LOG_DIR)) {
+    try {
+        fs.mkdirSync(LOG_DIR, { recursive: true });
+    } catch (e) {
+        console.error('Could not create log directory:', e);
+    }
+}
+const LOG_FILE = path.join(LOG_DIR, 'server.log');
+
+const logToFile = (level, args) => {
+    try {
+        const timestamp = new Date().toISOString();
+        const message = args.map(a => 
+            (a instanceof Error) ? a.stack : 
+            (typeof a === 'object') ? JSON.stringify(a) : a
+        ).join(' ');
+        const logLine = `[${timestamp}] [${level}] ${message}\n`;
+        fs.appendFileSync(LOG_FILE, logLine); // Sync to ensure write
+    } catch (err) {
+        // Fallback if file write fails, don't loop indefinitely
+        process.stdout.write('Failed to write to log file: ' + err.message + '\n');
+    }
+};
+
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = (...args) => {
+    originalLog(...args);
+    logToFile('INFO', args);
+};
+
+console.error = (...args) => {
+    originalError(...args);
+    logToFile('ERROR', args);
+};
+// ---------------------
+
+// We will allow all origins or infer from request, as we are behind a proxy that serves same-origin.
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+
+// Simplified CORS: allow all or reflect. Since frontend is same-origin via proxy, this is mostly for dev.
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: true,
     credentials: true
 }));
 
@@ -20,34 +67,71 @@ app.use(cookieSession({
     maxAge: 24 * 60 * 60 * 1000
 }));
 
-const oauth2Client = new google.auth.OAuth2(
+// Global client for calls that don't need specific redirect URI (like API calls using stored tokens)
+// But for Auth flow, we will create/configure instances dynamically.
+const globalOauth2Client = new google.auth.OAuth2(
     process.env.CLIENT_ID,
     process.env.CLIENT_SECRET,
-    process.env.REDIRECT_URI
+    // Redirect URI is not strictly needed here if we only use it for API calls with setCredentials
 );
 
+// Helper to get dynamic redirect URI
+const getRedirectUri = (req) => {
+    if (process.env.REDIRECT_URI) return process.env.REDIRECT_URI;
+    const proto = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    console.log('DEBUG: proto=', proto, 'host=', host, 'headers=', JSON.stringify(req.headers));
+    return `${proto}://${host}/auth/google/callback`;
+};
+
 app.get('/auth/google', (req, res) => {
-    const scopes = [
-        'https://www.googleapis.com/auth/classroom.courses.readonly',
-        'https://www.googleapis.com/auth/classroom.rosters.readonly',
-        'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
-        'https://www.googleapis.com/auth/classroom.profile.emails',
-        'https://www.googleapis.com/auth/classroom.topics.readonly'
-    ];
-    const url = oauth2Client.generateAuthUrl({ 
-        access_type: 'offline', 
-        scope: scopes,
-        prompt: 'consent'
-    });
-    res.redirect(url);
+    const redirectUri = getRedirectUri(req);
+    console.log('--- /auth/google called ---');
+    console.log('Dynamic Redirect URI:', redirectUri);
+
+    try {
+        const scopes = [
+            'https://www.googleapis.com/auth/classroom.courses.readonly',
+            'https://www.googleapis.com/auth/classroom.rosters.readonly',
+            'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
+            'https://www.googleapis.com/auth/classroom.profile.emails',
+            'https://www.googleapis.com/auth/classroom.topics.readonly'
+        ];
+        
+        // Generate auth URL using the dynamic redirect URI
+        const url = globalOauth2Client.generateAuthUrl({ 
+            access_type: 'offline', 
+            scope: scopes,
+            prompt: 'consent',
+            redirect_uri: redirectUri
+        });
+        
+        console.log('Generated Redirect URL:', url);
+        res.redirect(url);
+    } catch (error) {
+        console.error('Error in /auth/google:', error);
+        res.status(500).send('Failed to generate auth URL');
+    }
 });
 
 app.get('/auth/google/callback', async (req, res) => {
     const { code } = req.query;
+    const redirectUri = getRedirectUri(req);
+    console.log('Callback Redirect URI:', redirectUri);
+
     try {
-        const { tokens } = await oauth2Client.getToken(code);
+        // Exchange code for tokens, specifying the SAME redirect_uri used in auth
+        const { tokens } = await globalOauth2Client.getToken({
+            code,
+            redirect_uri: redirectUri
+        });
+        
         req.session.tokens = tokens;
-        res.redirect('http://localhost:5173');
+        
+        // Redirect back to the root of the app (same host)
+        const proto = req.headers['x-forwarded-proto'] || req.protocol;
+        const host = req.get('host');
+        res.redirect(`${proto}://${host}`);
     } catch (error) {
         console.error('Auth error:', error);
         res.status(500).send('Authentication failed');
@@ -56,13 +140,13 @@ app.get('/auth/google/callback', async (req, res) => {
 
 const checkAuth = (req, res, next) => {
     if (!req.session.tokens) return res.status(401).json({ error: 'Not authenticated' });
-    oauth2Client.setCredentials(req.session.tokens);
+    globalOauth2Client.setCredentials(req.session.tokens);
     next();
 };
 
 app.get('/api/courses', checkAuth, async (req, res) => {
     try {
-        const classroom = google.classroom({ version: 'v1', auth: oauth2Client });
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
         const response = await classroom.courses.list({ courseStates: ['ACTIVE'] });
         const allCourses = response.data.courses || [];
 
@@ -92,7 +176,7 @@ app.get('/api/courses', checkAuth, async (req, res) => {
 app.get('/api/courses/:courseId/details', checkAuth, async (req, res) => {
     const { courseId } = req.params;
     try {
-        const classroom = google.classroom({ version: 'v1', auth: oauth2Client });
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
 
         // 1. Fetch Students
         const studentsPromise = classroom.courses.students.list({
