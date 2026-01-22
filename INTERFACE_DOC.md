@@ -5,18 +5,16 @@ Detta dokument beskriver designen, interaktiviteten och logiken i "Classroom Mat
 ## 1. Gränssnittsöversikt (UI)
 
 Applikationen har en **Hierarkisk Layout** som utgår från:
-1.  **Dashboard-vy:** Lista över alla aktiva kurser.
-2.  **Kurs-vy (Expanderad):** Kontrollpanel och filter.
-3.  **Matris-vy (Heatmap):** Detaljerad tabell med elever och uppgifter.
+1.  **Toppmeny:** Dropdown för val av kurs, sökfält och verktyg ligger permanent i toppen (ljusgrå bakgrund).
+2.  **Fullskärms-matris:** Resten av fönstret dedikeras till en stor tabell (Heatmap) med elever och uppgifter.
 
 ### Färgschema & Visuell Feedback
-För att snabbt signalera status används färgkodning på cellnivå baserat på poäng (0-20):
+Färgkodning baseras på **procent** av maxpoängen för varje uppgift:
 
-*   🟥 **Ljusröd (#ffccc7):** Underkänt / Varning (< 10 poäng).
-*   🟩 **Ljusgrön (#d9f7be):** Godkänt (10-13 poäng).
-*   🌿 **Mellangrön (#95de64):** Väl godkänt (14-15 poäng).
-*   🌲 **Mörkgrön (#52c41a):** Utmärkt (16+ poäng).
-*   ⬜ **Vit/Grå:** Ej bedömd eller ej inlämnad.
+*   🔴 **0-49%:** Ej godkänt (`#ffccc7`)
+*   🟡 **50-69%:** Godkänt (`#d9f7be`)
+*   🟢 **70-89%:** Bra (`#95de64`)
+*   🌟 **90-100%:** Utmärkt (`#52c41a` med vit text)
 
 ---
 
@@ -24,31 +22,43 @@ För att snabbt signalera status används färgkodning på cellnivå baserat på
 
 ### A. Autentisering & Header
 *   **Inloggning:** Via Google OAuth2.
-*   **Statusindikator:** Visar om användaren är inloggad.
 *   **Logga ut:** Rensar sessionen och återställer vyer.
+*   **Tidsstämpel:** Visar när datan senast hämtades från Google Classroom (bredvid uppdatera-knappen).
 
-### B. Kurskortet
-Varje kurs presenteras som ett "kort" med följande kontroller:
-*   **Länk:** "Öppna i Classroom" (extern länk).
-*   **Uppdatera-knapp:** Tvingar en ny hämtning av data från API:et (användbart om man nyss rättat något i Classroom).
-*   **Visa/Dölj Matris:** Laddar in tung data (elever/inlämningar) först när användaren begär det ("Lazy loading") för att spara bandbredd och API-kvoter.
+### B. Kurskortet (Nu integrerat i toppmenyn)
+Val av kurs sker via en dropdown-lista.
+*   **Länk:** "Öppna i Classroom" (extern länk) finns som knapp.
+*   **Uppdatera-knapp:** Tvingar en ny hämtning av data från API:et.
 
 ### C. Matrisen (The Matrix)
-Detta är kärnkomponenten.
+Detta är kärnkomponenten som tar upp hela skärmen.
 
 1.  **Rader (Y-axel):** Representerar individuella elever.
+    *   Elever numreras (1, 2, 3...) för enkel referens.
+    *   Rader är ultrakompakta för att visa maximalt antal elever.
+    *   **Varning:** En röd triangel (⚠️) visas bredvid eleven om riskbedömningen slår till.
 2.  **Kolumner (X-axel):**
-    *   **Gruppering:** Uppgifter är grupperade efter sina "Topics" (Ämnesområden) i Classroom.
-    *   **Expandering:** Varje ämne har en header (t.ex. "[+] Geografi").
-        *   **Ihopfälld:** Visar endast en kolumn: "Max". Detta visar elevens *bästa* resultat inom det ämnet.
-        *   **Utfälld:** Visar alla individuella uppgifter inom ämnet + Max-kolumnen.
+    *   **Gruppering:** Uppgifter är grupperade efter sina "Topics" (Ämnesområden) i Classroom, sorterade alfabetiskt.
+    *   **Expandering:** Varje ämne kan fällas ut/in.
+        *   **Ihopfälld:** Visar endast en kolumn: "Max". Detta visar elevens *bästa procentuella resultat* inom det ämnet.
+        *   **Utfälld:** Visar alla individuella uppgifter inom ämnet (smala 50px kolumner) + Max-kolumnen. Kolumnerna får grå bakgrund för tydlighet.
 3.  **Filtrering:**
-    *   Ett sökfält tillåter filtrering av uppgiftsnamn i realtid. Exempel: Skriv "Prov" för att dölja alla inlämningsuppgifter och bara se prov.
+    *   Ett sökfält tillåter filtrering av uppgiftsnamn i realtid.
 
 ### D. Databearbetning (Logik)
 Appen visar inte bara rådata utan gör beräkningar:
-*   **Status-översättning:** Om inget betyg finns, visas textstatus (t.ex. "Inlämnad", "Återlämnad").
-*   **Max-värde:** För varje ämnesgrupp loopar appen igenom alla ingående uppgifter och extraherar det högsta betyget. Detta hjälper läraren att se "Har eleven klarat *någon* uppgift inom detta moment?".
+*   **Status-ikoner:**
+    *   <i class="bi bi-check-circle-fill"></i> Inlämnad
+    *   <i class="bi bi-arrow-return-left"></i> Återlämnad
+    *   <i class="bi bi-pencil-fill"></i> Påbörjad (Created)
+    *   <i class="bi bi-square"></i> Ej inlämnad/Ej bedömd
+*   **Max-värde:** För varje ämnesgrupp beräknas den högsta procenten en elev uppnått.
+*   **Riskhantering:** En elev flaggas som "Risk" (⚠️) om eleven har **minst ett ämne** där det bästa betyget (Max-kolumnen) är **under 50%**.
+    *   *OBS:* Uppgifter som saknas (ej inlämnade/betygsatta) räknas **inte** som underkänt för varningen. Varningen gäller endast konstaterade misslyckanden.
+*   **Sortering:**
+    *   **Namn:** A-Ö eller Ö-A.
+    *   **Prestation (Varning):** Sorterar efter lägst genomsnittsbetyg.
+    *   **Prestation (Bäst):** Sorterar efter högst genomsnittsbetyg.
 
 ---
 
@@ -56,25 +66,16 @@ Appen visar inte bara rådata utan gör beräkningar:
 
 Här följer förslag på funktioner och UX-förbättringar för framtida versioner:
 
-### UX & Användarvänlighet
-1.  **Låsta Rubriker (Sticky Headers):**
-    *   *Problem:* I långa listor försvinner rubrikerna när man scrollar.
-    *   *Lösning:* Lås både ämnesraden och elevnamn-kolumnen så de alltid är synliga när man scrollar (Excel-frysning).
-2.  **Tooltips:**
-    *   *Förslag:* Hovra över en betygscell för att se uppgiftens fullständiga namn, datum för inlämning och eventuella privata kommentarer från läraren.
-3.  **Sortering:**
-    *   *Förslag:* Möjlighet att sortera elever på namn (A-Ö) eller på prestation (t.ex. de med flest röda markeringar överst för att snabbt identifiera stödbehov).
+### Elevhälsa & Uppföljning
+1.  **Elevkort & Trendanalys:** 📈 Klicka på namn för att se linjediagram över utveckling.
+2.  **"Maila Varning":** 📧 En knapp för att automatiskt generera mail till elever med varningssymbol.
+3.  **Uppgiftsanalys:** 📊 Histogram som visar hur klassen presterade på en specifik uppgift.
 
-### Funktionalitet
-4.  **CSV/Excel-export:**
-    *   En knapp för att ladda ner hela matrisen som en .csv-fil för dokumentation eller vidare analys i Excel.
-5.  **Genomsnitt & Median:**
-    *   Lägg till en rad längst ner i matrisen som visar klassens snittbetyg på varje uppgift.
-6.  **"Klicka för att öppna":**
-    *   Gör varje cell klickbar. Ett klick tar läraren direkt till rättningsvyn för den specifika eleven och uppgiften i Google Classroom.
+### UX & Konfiguration
+4.  **Konfigurerbara Gränser:** ⚙️ Låt läraren ställa in betygsgränser (idag 50/70/90%) och risk-gräns (idag 50%).
+5.  **Dark Mode:** 🌙 Skonsamt läge för kvällsarbete.
+6.  **Tooltips:** Hovra över en betygscell för mer info.
 
 ### Prestanda
-7.  **Cache-optimering:**
-    *   Just nu hämtas data varje gång man fäller ut en kurs (om man inte tvingar uppdatering). Implementera `localStorage` eller en mer robust "state management" (typ Redux/TanStack Query) för att minska laddtiderna när man navigerar fram och tillbaka.
-8.  **Paginering:**
-    *   Om en kurs har 100+ uppgifter kan renderingen bli långsam. Virtualisering (t.ex. `react-window`) kan behövas för att rendera endast de celler som syns på skärmen.
+7.  **Cache-optimering:** Mer robust state-hantering (Redux/TanStack Query).
+8.  **Paginering:** Virtualisering vid mycket stora datamängder.

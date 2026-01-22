@@ -6,13 +6,13 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
 
 *   **Matrisvy:** Samlad vy av alla elevers resultat i en kurs.
 *   **Ämnesgruppering:** Uppgifter grupperas automatiskt under sina Classroom-ämnen.
-*   **Max-betyg:** Beräknar automatiskt högsta uppnådda betyg inom ett ämne/grupp.
+*   **Max-betyg:** Beräknar automatiskt högsta uppnådda betyg (procentuellt) inom ett ämne/grupp.
 *   **Dynamisk Expandering:** Visa/dölj detaljerade uppgifter per ämne för att minska "brus".
-*   **Färgkodning:**
-    *   🔴 **< 10:** Ej godkänt
-    *   🟢 **10-13:** Godkänt (E)
-    *   🟢 **14-15:** Väl Godkänt (C)
-    *   🌟 **16-20:** Mycket Väl Godkänt (A)
+*   **Färgkodning (Procentbaserad):**
+    *   🔴 **0-49%:** Ej godkänt
+    *   🟡 **50-69%:** Godkänt (E)
+    *   🟢 **70-89%:** Väl Godkänt (C)
+    *   🌟 **90-100%:** Mycket Väl Godkänt (A)
 *   **Live Data:** Hämtar data direkt från Google Classroom API.
 *   **Sökfilter:** Filtrera uppgifter i realtid.
 
@@ -20,7 +20,7 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
 
 Projektet är containeriserat med Docker för enkel driftsättning.
 
-*   **Frontend:** React (Vite), Nginx (Webbserver & Reverse Proxy).
+*   **Frontend:** React (Vite), Bootstrap 5, Bootstrap Icons.
 *   **Backend:** Node.js, Express, Google APIs.
 *   **Infrastruktur:** Docker & Docker Compose.
 *   **Loggning:** Filbaserad loggning för både access- och applikationsloggar.
@@ -101,12 +101,10 @@ docker-compose up -d --build
 
 **Fel: `redirect_uri_mismatch`**
 *   Kontrollera att adressen i webbläsaren stämmer EXAKT med vad som står i Google Cloud Console under "Authorized redirect URIs".
-*   Om du använder `.nip.io`, se till att du inte glömt portnumret (`:8080`) i webbläsaren.
 *   Se till att `REDIRECT_URI` är **bortkommenterad** i `backend/.env` så servern kan anpassa sig dynamiskt.
 
 **Fel: Inloggningen loopar bara**
-*   Detta kan bero på att cookies inte sparas. Se till att du inte kör i inkognitoläge som blockerar tredjepartscookies om backend och frontend ligger på olika domäner (ej fallet här, men bra att veta).
+*   Detta kan bero på att cookies inte sparas. Testa en annan webbläsare eller stäng av strikt cookie-blockering.
 
 **Fel: "Inga kurser hittades"**
-*   Kontrollera att det konto du loggar in med faktiskt är lärare för kurser i Classroom.
-*   Kontrollera backend-loggen (`logs/backend/server.log`) för eventuella felmeddelanden från Google API.
+*   Kontrollera att kontot du loggar in med är registrerat som lärare i Classroom.
