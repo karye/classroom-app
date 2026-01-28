@@ -59,6 +59,14 @@ Appen visar inte bara rådata utan gör beräkningar:
     *   **Namn:** A-Ö eller Ö-A.
     *   **Prestation (Varning):** Sorterar efter lägst genomsnittsbetyg.
     *   **Prestation (Bäst):** Sorterar efter högst genomsnittsbetyg.
+    *   **Mest inlämnat:** Sorterar efter flest antal inlämnade/klara uppgifter (baserat på aktuellt filter).
+
+### E. Relativ Färgkodning (Inlämningar)
+När matrisen visar uppgifter (ej betygssatta prov), ändras logiken för färgkodning i summakolumnen:
+*   Färgen baseras på en **relativ skala** inom varje ämne.
+*   Systemet letar upp det *högsta* antalet inlämningar någon elev har gjort i det ämnet.
+*   En elevs färg beräknas som: `(Elevens inlämningar / Max inlämningar i klassen) * 100`.
+    *   Detta gör att om läraren lagt ut 10 uppgifter men ingen gjort fler än 5, räknas 5 som "100%" (Grönt).
 
 ---
 

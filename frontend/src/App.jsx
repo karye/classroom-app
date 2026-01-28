@@ -14,6 +14,8 @@ function App() {
   const [sortConfig, setSortConfig] = useState({})
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [lastUpdated, setLastUpdated] = useState({}) 
+  const [showGraded, setShowGraded] = useState(true)
+  const [showUngraded, setShowUngraded] = useState(true)
 
   axios.defaults.withCredentials = true;
 
@@ -166,6 +168,19 @@ function App() {
       return false;
   }
 
+  const calculateTotalSubmissionCount = (studentId, submissions, groupedWork) => {
+      let count = 0;
+      groupedWork.forEach(group => {
+          group.assignments.forEach(cw => {
+              const sub = getSubmission(studentId, cw.id, submissions);
+               if (sub && (sub.state === 'TURNED_IN' || sub.state === 'RETURNED' || (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null))) {
+                   count++;
+               }
+          });
+      });
+      return count;
+  }
+
   const getSortedStudents = (students, courseId, submissions, groupedWork, coursework) => {
       const sortType = sortConfig[courseId] || 'name-asc';
       const sorted = [...students];
@@ -178,6 +193,8 @@ function App() {
           case 'perf-top': 
               // Sort by Highest Average first
               return sorted.sort((a, b) => calculateAveragePercent(b.userId, submissions, coursework) - calculateAveragePercent(a.userId, submissions, coursework));
+          case 'submission-desc':
+              return sorted.sort((a, b) => calculateTotalSubmissionCount(b.userId, submissions, groupedWork) - calculateTotalSubmissionCount(a.userId, submissions, groupedWork));
           case 'name-asc':
           default:
               return sorted.sort((a, b) => a.profile.name.fullName.localeCompare(b.profile.name.fullName));
@@ -213,6 +230,28 @@ function App() {
            }
        });
        return count > 0 ? (sum / count).toFixed(1) : '-';
+  }
+
+  const calculateGroupSummaryFooter = (group, students, submissions) => {
+      if (showGraded) {
+          return calculateGroupMaxAverage(group.id, students, group.assignments, submissions);
+      } else {
+          // Calculate average count of submissions
+          let totalCount = 0;
+          let studentCount = 0;
+          students.forEach(std => {
+              let count = 0;
+              group.assignments.forEach(cw => {
+                  const sub = getSubmission(std.userId, cw.id, submissions);
+                   if (sub && (sub.state === 'TURNED_IN' || sub.state === 'RETURNED' || (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null))) {
+                       count++;
+                   }
+              });
+              totalCount += count;
+              studentCount++;
+          });
+          return studentCount > 0 ? (totalCount / studentCount).toFixed(1) : '-';
+      }
   }
 
   const downloadCSV = (courseId, courseName, groupedWork, students, submissions) => {
@@ -294,9 +333,15 @@ function App() {
   
   let groupedWork = [];
   let sortedStudents = [];
+  const maxSubmissionsPerGroup = {};
 
   if (details) {
-       const visibleCoursework = details.coursework.filter(cw => cw.title.toLowerCase().includes(filterText.toLowerCase()));
+       const visibleCoursework = details.coursework.filter(cw => {
+           const matchesText = cw.title.toLowerCase().includes(filterText.toLowerCase());
+           const isGraded = cw.maxPoints && cw.maxPoints > 0;
+           const matchesType = (isGraded && showGraded) || (!isGraded && showUngraded);
+           return matchesText && matchesType;
+       });
        const topicMap = new Map();
        details.topics?.forEach(t => topicMap.set(t.topicId, t.name));
        const groups = {}; 
@@ -321,6 +366,24 @@ function App() {
                      groupedWork.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
                      if (noTopic.length > 0) groupedWork.push({ id: 'none', name: 'Övrigt', assignments: noTopic });
                      sortedStudents = getSortedStudents(details.students, selectedCourseId, details.submissions, groupedWork, details.coursework);
+                     
+                     // Pre-calculate max submissions per group for relative coloring
+                     if (details && groupedWork.length > 0) {
+                         groupedWork.forEach(group => {
+                             let max = 0;
+                             details.students.forEach(student => {
+                                 let count = 0;
+                                 group.assignments.forEach(cw => {
+                                     const sub = getSubmission(student.userId, cw.id, details.submissions);
+                                     if (sub && (sub.state === 'TURNED_IN' || sub.state === 'RETURNED' || (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null))) {
+                                         count++;
+                                     }
+                                 });
+                                 if (count > max) max = count;
+                             });
+                             maxSubmissionsPerGroup[group.id] = max;
+                         });
+                     }
                 }       
          return (
            <div className="d-flex flex-column vh-100 overflow-hidden bg-light">
@@ -354,13 +417,24 @@ function App() {
                            <>
                                <div className="input-group input-group-sm" style={{ width: '200px' }}>
                                     <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
-                                    <input type="text" className="form-control border-start-0 ps-0" placeholder="Sök uppgift..." value={filterText} onChange={(e) => setAssignmentFilters(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} />
+                                    <input type="text" className="form-control border-start-0 ps-0" placeholder="Filter..." value={filterText} onChange={(e) => setAssignmentFilters(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} />
+                               </div>
+                               <div className="d-flex align-items-center gap-2 ms-2 me-3">
+                                    <div className="form-check form-check-inline m-0">
+                                        <input className="form-check-input" type="checkbox" id="checkGraded" checked={showGraded} onChange={e => setShowGraded(e.target.checked)} />
+                                        <label className="form-check-label small" htmlFor="checkGraded">Prov</label>
+                                    </div>
+                                    <div className="form-check form-check-inline m-0">
+                                        <input className="form-check-input" type="checkbox" id="checkUngraded" checked={showUngraded} onChange={e => setShowUngraded(e.target.checked)} />
+                                        <label className="form-check-label small" htmlFor="checkUngraded">Uppg.</label>
+                                    </div>
                                </div>
                                                          <select onChange={(e) => setSortConfig(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} value={sortConfig[selectedCourseId] || 'name-asc'} className="form-select form-select-sm" style={{ width: '130px' }}>
                                                             <option value="name-asc">A-Ö</option>
                                                             <option value="name-desc">Ö-A</option>
                                                             <option value="perf-struggle">Varning</option>
                                                             <option value="perf-top">Bäst</option>
+                                                            <option value="submission-desc">Mest inlämnat</option>
                                                         </select>                               <button onClick={() => fetchCourseDetails(selectedCourseId, true)} disabled={loadingDetails[selectedCourseId]} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${loadingDetails[selectedCourseId] ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
                                {lastUpdated[selectedCourseId] && <span className="small text-muted" style={{ fontSize: '0.7rem' }}>Uppdaterad: {lastUpdated[selectedCourseId]}</span>}
                                <button onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)} className="btn btn-success btn-sm" title="Exportera Excel"><i className="bi bi-file-earmark-spreadsheet"></i></button>
@@ -401,7 +475,7 @@ function App() {
                                                                <a href={cw.alternateLink} target="_blank" rel="noreferrer" className="text-decoration-none text-muted stretched-link">{cw.title}</a>
                                                            </th>
                                                        ))}
-                                                       <th className="sticky-header-assign text-center bg-white" style={{ borderLeft: !isExpanded ? '2px solid #dee2e6' : '1px solid #dee2e6', minWidth: '80px', maxWidth: '80px', width: '80px', color: '#212529', fontWeight: 'bold', fontSize: '0.7rem' }}>Max</th>
+                                                       <th className="sticky-header-assign text-center bg-white" style={{ borderLeft: !isExpanded ? '2px solid #dee2e6' : '1px solid #dee2e6', minWidth: '80px', maxWidth: '80px', width: '80px', color: '#212529', fontWeight: 'bold', fontSize: '0.7rem' }}>Σ</th>
                                                    </React.Fragment>
                                                );
                                                })}
@@ -442,11 +516,37 @@ function App() {
                                                     );
                                                 });
                                                 const maxColor = getGradeColorByPercent(maxGradePercent);
+                                                
+                                                let summaryContent = '-';
+                                                let summaryStyle = { borderLeft: !isExpanded ? '2px solid #dee2e6' : '1px solid #dee2e6', fontSize: '0.75rem' };
+                                                
+                                                if (showGraded) {
+                                                    summaryStyle.backgroundColor = maxColor;
+                                                    summaryStyle.color = maxGradePercent >= 90 ? 'white' : 'inherit';
+                                                    summaryContent = hasGrade ? maxGrade : '-';
+                                                } else {
+                                                    let turnInCount = 0;
+                                                    group.assignments.forEach(cw => {
+                                                        const sub = getSubmission(student.userId, cw.id, details.submissions);
+                                                        if (sub && (sub.state === 'TURNED_IN' || sub.state === 'RETURNED' || (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null))) {
+                                                            turnInCount++;
+                                                        }
+                                                    });
+                                                    
+                                                    const maxInThisGroup = maxSubmissionsPerGroup[group.id] || 0;
+                                                    // Relative percentage based on the best student in this group (relative grading)
+                                                    const submissionPct = maxInThisGroup > 0 ? (turnInCount / maxInThisGroup) * 100 : 0;
+                                                    
+                                                    summaryStyle.backgroundColor = getGradeColorByPercent(submissionPct);
+                                                    summaryStyle.color = submissionPct >= 90 ? 'white' : 'inherit';
+                                                    summaryContent = turnInCount;
+                                                }
+
                                                 return (
                                                     <React.Fragment key={group.id}>
                                                         {cells}
-                                                        <td className="text-center fw-bold align-middle" style={{ borderLeft: !isExpanded ? '2px solid #dee2e6' : '1px solid #dee2e6', backgroundColor: maxColor, color: maxGradePercent >= 90 ? 'white' : 'inherit', fontSize: '0.75rem' }}>
-                                                            {hasGrade ? maxGrade : '-'}
+                                                        <td className="text-center fw-bold align-middle" style={summaryStyle}>
+                                                            {summaryContent}
                                                         </td>
                                                     </React.Fragment>
                                                 );
@@ -468,7 +568,7 @@ function App() {
                                                         </td>
                                                     ))}
                                                      <td className="text-center bg-light" style={{ borderLeft: !isExpanded ? '2px solid #343a40' : '1px solid #dee2e6', borderTop: '2px solid #343a40', fontSize: '0.7rem' }}>
-                                                            {calculateGroupMaxAverage(group.id, details.students, group.assignments, details.submissions)}
+                                                            {calculateGroupSummaryFooter(group, details.students, details.submissions)}
                                                         </td>
                                                 </React.Fragment>
                                             )

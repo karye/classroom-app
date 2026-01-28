@@ -13,8 +13,9 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
     *   🟡 **50-69%:** Godkänt (E)
     *   🟢 **70-89%:** Väl Godkänt (C)
     *   🌟 **90-100%:** Mycket Väl Godkänt (A)
+    *   *För inlämningsuppgifter används en relativ skala baserad på klassens "bästa" inlämningsfrekvens.*
 *   **Live Data:** Hämtar data direkt från Google Classroom API.
-*   **Sökfilter:** Filtrera uppgifter i realtid.
+*   **Sökfilter & Sortering:** Filtrera uppgifter och sortera elever på prestation eller inlämningsflit.
 
 ## 🛠 Teknikstack
 
