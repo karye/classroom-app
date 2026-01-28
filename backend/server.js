@@ -5,12 +5,14 @@ const dotenv = require('dotenv');
 const cookieSession = require('cookie-session');
 const fs = require('fs');
 const path = require('path');
+const db = require('./database');
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 app.set('trust proxy', true);
+app.use(express.json());
 
 // --- Logging Setup ---
 const LOG_DIR = path.join(__dirname, 'logs');
@@ -95,7 +97,9 @@ app.get('/auth/google', (req, res) => {
             'https://www.googleapis.com/auth/classroom.rosters.readonly',
             'https://www.googleapis.com/auth/classroom.coursework.students.readonly',
             'https://www.googleapis.com/auth/classroom.profile.emails',
-            'https://www.googleapis.com/auth/classroom.topics.readonly'
+            'https://www.googleapis.com/auth/classroom.topics.readonly',
+            'https://www.googleapis.com/auth/classroom.announcements.readonly',
+            'https://www.googleapis.com/auth/userinfo.profile'
         ];
         
         // Generate auth URL using the dynamic redirect URI
@@ -120,15 +124,22 @@ app.get('/auth/google/callback', async (req, res) => {
     console.log('Callback Redirect URI:', redirectUri);
 
     try {
-        // Exchange code for tokens, specifying the SAME redirect_uri used in auth
+        // Exchange code for tokens
         const { tokens } = await globalOauth2Client.getToken({
             code,
             redirect_uri: redirectUri
         });
         
-        req.session.tokens = tokens;
+        globalOauth2Client.setCredentials(tokens);
+
+        // Fetch user profile to get unique ID
+        const oauth2 = google.oauth2({ version: 'v2', auth: globalOauth2Client });
+        const userInfo = await oauth2.userinfo.get();
         
-        // Redirect back to the root of the app (same host)
+        req.session.tokens = tokens;
+        req.session.userId = userInfo.data.id; // Store Google User ID
+        
+        // Redirect back
         const proto = req.headers['x-forwarded-proto'] || req.protocol;
         const host = req.get('host');
         res.redirect(`${proto}://${host}`);
@@ -241,6 +252,73 @@ app.get('/api/courses/:courseId/details', checkAuth, async (req, res) => {
         console.error('Details fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch course details' });
     }
+});
+
+app.get('/api/courses/:courseId/announcements', checkAuth, async (req, res) => {
+    const { courseId } = req.params;
+    try {
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+        const response = await classroom.courses.announcements.list({
+            courseId,
+            pageSize: 20, // Hämta de 20 senaste inläggen
+            orderBy: 'updateTime desc'
+        });
+        
+        res.json(response.data.announcements || []);
+    } catch (error) {
+        console.error('Fetch announcements error:', error);
+        res.status(500).json({ error: 'Failed to fetch announcements' });
+    }
+});
+
+// --- Notes API ---
+
+app.get('/api/notes/:courseId', checkAuth, (req, res) => {
+    const userId = req.session.userId;
+    const { courseId } = req.params;
+    
+    if (!userId) return res.status(401).json({ error: 'User ID missing in session' });
+
+    db.all(
+        'SELECT post_id, content FROM notes WHERE user_id = ? AND course_id = ?',
+        [userId, courseId],
+        (err, rows) => {
+            if (err) {
+                console.error('DB fetch error:', err);
+                return res.status(500).json({ error: 'Database error' });
+            }
+            // Transform array to object: { "postId1": "content1", ... }
+            const notesMap = {};
+            rows.forEach(row => {
+                notesMap[row.post_id] = row.content;
+            });
+            res.json(notesMap);
+        }
+    );
+});
+
+app.post('/api/notes', checkAuth, (req, res) => {
+    const userId = req.session.userId;
+    const { courseId, postId, content } = req.body;
+
+    if (!userId) return res.status(401).json({ error: 'User ID missing' });
+    if (!courseId || !postId) return res.status(400).json({ error: 'Missing fields' });
+
+    // Upsert (Insert or Replace)
+    const sql = `
+        INSERT INTO notes (user_id, course_id, post_id, content) 
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, post_id) 
+        DO UPDATE SET content = excluded.content, updated_at = CURRENT_TIMESTAMP
+    `;
+    
+    db.run(sql, [userId, courseId, postId, content], function(err) {
+        if (err) {
+            console.error('DB save error:', err);
+            return res.status(500).json({ error: 'Failed to save note' });
+        }
+        res.json({ success: true });
+    });
 });
 
 app.get('/api/user', (req, res) => {

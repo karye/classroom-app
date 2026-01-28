@@ -14,6 +14,10 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
     *   🟢 **70-89%:** Väl Godkänt (C)
     *   🌟 **90-100%:** Mycket Väl Godkänt (A)
     *   *För inlämningsuppgifter används en relativ skala baserad på klassens "bästa" inlämningsfrekvens.*
+*   **Stream & Loggbok:**
+    *   Läs flödet (Announcements) från Classroom i en kompakt vy.
+    *   **Privat Loggbok:** Skriv och spara personliga lektionsanteckningar (Markdown-stöd) kopplade till varje inlägg. Anteckningar sparas säkert per användare.
+    *   **Kalender:** Filtrera inlägg per datum och se veckonummer.
 *   **Live Data:** Hämtar data direkt från Google Classroom API.
 *   **Sökfilter & Sortering:** Filtrera uppgifter och sortera elever på prestation eller inlämningsflit.
 
@@ -21,8 +25,8 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
 
 Projektet är containeriserat med Docker för enkel driftsättning.
 
-*   **Frontend:** React (Vite), Bootstrap 5, Bootstrap Icons.
-*   **Backend:** Node.js, Express, Google APIs.
+*   **Frontend:** React (Vite), Bootstrap 5, Bootstrap Icons, Recharts, React-Markdown.
+*   **Backend:** Node.js, Express, Google APIs, **SQLite** (för persistent lagring av loggbok).
 *   **Infrastruktur:** Docker & Docker Compose.
 *   **Loggning:** Filbaserad loggning för både access- och applikationsloggar.
 

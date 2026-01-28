@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
+import StreamView from './components/StreamView'
 import './App.css'
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState({}) 
   const [showGraded, setShowGraded] = useState(true)
   const [showUngraded, setShowUngraded] = useState(true)
+  const [currentView, setCurrentView] = useState('matrix'); // 'matrix' | 'stream'
 
   axios.defaults.withCredentials = true;
 
@@ -41,7 +43,11 @@ function App() {
     try {
       const res = await axios.get('/api/courses');
       setCourses(res.data);
-      if (res.data.length > 0 && !selectedCourseId) {
+      
+      const savedCourseId = localStorage.getItem('lastSelectedCourseId');
+      if (savedCourseId && res.data.find(c => c.id === savedCourseId)) {
+          handleCourseChange(savedCourseId);
+      } else if (res.data.length > 0 && !selectedCourseId) {
           handleCourseChange(res.data[0].id);
       }
     } catch (err) {
@@ -51,6 +57,7 @@ function App() {
 
   const handleCourseChange = (courseId) => {
       setSelectedCourseId(courseId);
+      localStorage.setItem('lastSelectedCourseId', courseId);
       if (courseId && !courseDetails[courseId]) {
           fetchCourseDetails(courseId);
       }
@@ -401,9 +408,15 @@ function App() {
                <>
                    <header className="bg-light border-bottom px-4 py-2 d-flex justify-content-between align-items-center shadow-sm z-10" style={{ minHeight: '60px' }}>
                        <div className="d-flex align-items-center gap-3">
-                           <div className="d-flex align-items-center gap-2 text-primary">
-                                <i className="bi bi-grid-3x3-gap-fill fs-4"></i>
-                                <span className="fw-bold fs-5 d-none d-md-block">Matrix</span>
+                           <div className="d-flex align-items-center gap-2">
+                                <button className={`btn btn-sm ${currentView === 'matrix' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center gap-2`} onClick={() => setCurrentView('matrix')} title="Matrisvy">
+                                    <i className="bi bi-grid-3x3-gap-fill fs-5"></i>
+                                    <span className="fw-bold d-none d-md-block">Matrix</span>
+                                </button>
+                                <button className={`btn btn-sm ${currentView === 'stream' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center gap-2`} onClick={() => setCurrentView('stream')} title="Kursflöde">
+                                    <i className="bi bi-chat-square-text-fill fs-5"></i>
+                                    <span className="fw-bold d-none d-md-block">Stream</span>
+                                </button>
                            </div>
                            <div className="vr mx-2"></div>
                            <select className="form-select form-select-sm fw-bold border-primary" style={{ maxWidth: '300px' }} value={selectedCourseId} onChange={(e) => handleCourseChange(e.target.value)}>
@@ -413,7 +426,7 @@ function App() {
                            {currentCourse && <a href={currentCourse.alternateLink} target="_blank" rel="noreferrer" className="btn btn-link btn-sm text-decoration-none" title="Öppna i Classroom"><i className="bi bi-box-arrow-up-right"></i></a>}
                        </div>
                        <div className="d-flex align-items-center gap-2">
-                           {selectedCourseId && (
+                           {currentView === 'matrix' && selectedCourseId && (
                            <>
                                <div className="input-group input-group-sm" style={{ width: '200px' }}>
                                     <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
@@ -435,18 +448,26 @@ function App() {
                                                             <option value="perf-struggle">Varning</option>
                                                             <option value="perf-top">Bäst</option>
                                                             <option value="submission-desc">Mest inlämnat</option>
-                                                        </select>                               <button onClick={() => fetchCourseDetails(selectedCourseId, true)} disabled={loadingDetails[selectedCourseId]} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${loadingDetails[selectedCourseId] ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
-                               {lastUpdated[selectedCourseId] && <span className="small text-muted" style={{ fontSize: '0.7rem' }}>Uppdaterad: {lastUpdated[selectedCourseId]}</span>}
-                               <button onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)} className="btn btn-success btn-sm" title="Exportera Excel"><i className="bi bi-file-earmark-spreadsheet"></i></button>
+                                                        </select>                               <button onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)} className="btn btn-success btn-sm" title="Exportera Excel"><i className="bi bi-file-earmark-spreadsheet"></i></button>
                                <div className="vr mx-2"></div>
                            </>
+                           )}
+                           {selectedCourseId && (
+                                <>
+                                    <button onClick={() => currentView === 'matrix' ? fetchCourseDetails(selectedCourseId, true) : null} disabled={loadingDetails[selectedCourseId]} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${loadingDetails[selectedCourseId] ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
+                                    {lastUpdated[selectedCourseId] && <span className="small text-muted ms-2" style={{ fontSize: '0.7rem' }}>Uppdaterad: {lastUpdated[selectedCourseId]}</span>}
+                                </>
                            )}
                            <button onClick={handleLogout} className="btn btn-light btn-sm text-danger"><i className="bi bi-power"></i></button>
                        </div>
                    </header>
        
                    <main className="flex-grow-1 overflow-hidden d-flex flex-column position-relative bg-white">
-                       {selectedCourseId && details ? (
+                       {currentView === 'stream' ? (
+                           <div className="flex-grow-1 overflow-auto bg-light">
+                               {selectedCourseId ? <StreamView courseId={selectedCourseId} /> : <div className="p-5 text-center text-muted">Välj ett klassrum ovan</div>}
+                           </div>
+                       ) : selectedCourseId && details ? (
                            <div className="flex-grow-1 overflow-auto matrix-wrapper border-0 rounded-0 h-100">
                                 <table className="table table-sm table-hover mb-0 matrix-table">
                                        <thead>

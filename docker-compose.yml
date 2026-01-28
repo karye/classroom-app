@@ -9,6 +9,7 @@ services:
       - PORT=3000
     volumes:
       - ./logs/backend:/app/logs
+      - ./data:/app/data
     restart: always
 
   frontend:

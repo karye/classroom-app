@@ -70,7 +70,24 @@ När matrisen visar uppgifter (ej betygssatta prov), ändras logiken för färgk
 
 ---
 
-## 3. Förslag till Förbättringar (Roadmap)
+## 3. Stream & Loggbok (Nyhet)
+
+En separat vy ("Stream") ger läraren möjlighet att följa flödet och planera lektioner.
+
+### Funktioner
+*   **Kompakt flöde:** Inlägg visas som expanderbara rader för bättre överblick.
+*   **Kalender-navigering:**
+    *   En månadskalender till vänster visar vilka dagar som har inlägg (markerade med prick).
+    *   Klicka på ett datum för att filtrera flödet.
+    *   Visar **veckonummer** för enkel planering.
+*   **Privat Loggbok (SQLite):**
+    *   Varje inlägg har en dedikerad "Loggbok"-sektion (högerkolumn på desktop).
+    *   Anteckningar är **privata** (kopplade till ditt Google ID) och sparas i en databas på servern.
+    *   **Markdown-stöd:** Anteckningar kan formateras med fetstil, listor etc.
+
+---
+
+## 4. Förslag till Förbättringar (Roadmap)
 
 Här följer förslag på funktioner och UX-förbättringar för framtida versioner:
 
