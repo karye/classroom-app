@@ -3,6 +3,7 @@ import axios from 'axios'
 import { format, getISOWeek, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import StreamView from './components/StreamView'
+import TodoView from './components/TodoView'
 import './App.css'
 
 function App() {
@@ -27,6 +28,9 @@ function App() {
   const [streamNotes, setStreamNotes] = useState({});
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState(null);
+  
+  // Refresh handler specifically for Todo view (passed via context or prop is hard, let's use a trigger)
+  const [todoRefreshTrigger, setTodoRefreshTrigger] = useState(0);
 
   axios.defaults.withCredentials = true;
 
@@ -56,6 +60,7 @@ function App() {
   }
 
   const fetchStreamData = async (courseId) => {
+      if (!courseId) return; // Guard clause
       setStreamLoading(true);
       setStreamError(null);
       try {
@@ -156,6 +161,7 @@ function App() {
   }
 
   const fetchCourseDetails = async (courseId, forceUpdate = false) => {
+    if (!courseId) return; // Guard clause
     const cacheKey = `course_cache_${courseId}`;
     
     if (!forceUpdate && !courseDetails[courseId]) {
@@ -550,10 +556,15 @@ function App() {
                                     <i className="bi bi-chat-square-text-fill fs-5"></i>
                                     <span className="fw-bold d-none d-md-block">Stream</span>
                                 </button>
+                                <button className={`btn btn-sm ${currentView === 'todo' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center gap-2`} onClick={() => setCurrentView('todo')} title="Att göra">
+                                    <i className="bi bi-check2-square fs-5"></i>
+                                    <span className="fw-bold d-none d-md-block">Todo</span>
+                                </button>
                            </div>
                            <div className="vr mx-2"></div>
+                           
                            <select className="form-select form-select-sm fw-bold border-primary" style={{ maxWidth: '300px' }} value={selectedCourseId} onChange={(e) => handleCourseChange(e.target.value)}>
-                               <option value="" disabled>Välj klassrum...</option>
+                               <option value="">Alla klassrum (Todo)</option>
                                {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                            </select>
                            {currentCourse && <a href={currentCourse.alternateLink} target="_blank" rel="noreferrer" className="btn btn-link btn-sm text-decoration-none" title="Öppna i Classroom"><i className="bi bi-box-arrow-up-right"></i></a>}
@@ -597,18 +608,26 @@ function App() {
                                     <div className="vr mx-2"></div>
                                </>
                            )}
-                           {selectedCourseId && (
+                           {selectedCourseId || currentView === 'todo' ? (
                                 <>
-                                    <button onClick={() => currentView === 'matrix' ? fetchCourseDetails(selectedCourseId, true) : fetchStreamData(selectedCourseId)} disabled={currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
+                                    <button onClick={() => {
+                                        if (currentView === 'matrix') fetchCourseDetails(selectedCourseId, true);
+                                        else if (currentView === 'stream') fetchStreamData(selectedCourseId);
+                                        else if (currentView === 'todo') setTodoRefreshTrigger(prev => prev + 1);
+                                    }} disabled={currentView === 'matrix' ? loadingDetails[selectedCourseId] : currentView === 'stream' ? streamLoading : false} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
                                     {lastUpdated[selectedCourseId] && currentView === 'matrix' && <span className="small text-muted ms-2" style={{ fontSize: '0.7rem' }}>Uppdaterad: {lastUpdated[selectedCourseId]}</span>}
                                 </>
-                           )}
+                           ) : null}
                            <button onClick={handleLogout} className="btn btn-light btn-sm text-danger" title="Logga ut"><i className="bi bi-power"></i></button>
                        </div>
                    </header>
        
                    <main className="flex-grow-1 overflow-hidden d-flex flex-column position-relative bg-white">
-                       {currentView === 'stream' ? (
+                       {currentView === 'todo' ? (
+                           <div className="flex-grow-1 overflow-auto bg-light">
+                               <TodoView selectedCourseId={selectedCourseId} refreshTrigger={todoRefreshTrigger} />
+                           </div>
+                       ) : currentView === 'stream' ? (
                            <div className="flex-grow-1 overflow-auto bg-light">
                                {selectedCourseId ? (
                                    <StreamView 

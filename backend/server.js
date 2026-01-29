@@ -310,7 +310,7 @@ app.get('/api/courses/:courseId/announcements', checkAuth, async (req, res) => {
         const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
         const response = await classroom.courses.announcements.list({
             courseId,
-            pageSize: 20, // Hämta de 20 senaste inläggen
+            pageSize: 100, // Ökat från 20 till 100 för att täcka en termin
             orderBy: 'updateTime desc'
         });
         
@@ -318,6 +318,111 @@ app.get('/api/courses/:courseId/announcements', checkAuth, async (req, res) => {
     } catch (error) {
         console.error('Fetch announcements error:', error);
         res.status(500).json({ error: 'Failed to fetch announcements' });
+    }
+});
+
+// --- Todo API ---
+
+app.get('/api/todos', checkAuth, async (req, res) => {
+    try {
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+        
+        // 1. Get all active courses
+        const coursesRes = await classroom.courses.list({ courseStates: ['ACTIVE'] });
+        const allCourses = coursesRes.data.courses || [];
+        
+        if (allCourses.length === 0) return res.json([]);
+
+        // 2. Fetch data for each course in parallel
+        // Optimization: Use Promise.all to fetch everything at once
+        const todosPromises = allCourses.map(async (course) => {
+            try {
+                // Parallelize sub-requests for this course
+                const [studentsRes, courseWorkRes, submissionsRes] = await Promise.all([
+                    // A. Get Students (to map IDs to names)
+                    classroom.courses.students.list({ courseId: course.id }).catch(e => ({ data: { students: [] } })),
+                    // B. Get CourseWork (to get titles)
+                    classroom.courses.courseWork.list({ courseId: course.id }).catch(e => ({ data: { courseWork: [] } })),
+                    // C. Get ALL submissions that are TURNED_IN
+                    // Using courseWorkId: '-' is a special wildcard supported by some APIs, but Classroom is strict.
+                    // However, iterating ALL coursework is too heavy.
+                    // Let's try the strict way: iterate coursework but ONLY if we have coursework.
+                    // Actually, let's wait for step B to finish.
+                    Promise.resolve(null) 
+                ]);
+
+                const students = studentsRes.data.students || [];
+                const courseWork = courseWorkRes.data.courseWork || [];
+
+                if (courseWork.length === 0) return null;
+
+                // C (Revised). Fetch submissions for all coursework.
+                // To avoid 100+ requests per course, we only check coursework that might have submissions.
+                // But we don't know which ones.
+                // We will limit to the 50 most recent assignments to be safe on quota.
+                const recentWork = courseWork.slice(0, 50);
+
+                const subPromises = recentWork.map(cw => 
+                    classroom.courses.courseWork.studentSubmissions.list({
+                        courseId: course.id,
+                        courseWorkId: cw.id,
+                        states: ['TURNED_IN'],
+                        pageSize: 100
+                    }).then(r => r.data.studentSubmissions || [])
+                      .catch(() => [])
+                );
+                
+                const submissionsArrays = await Promise.all(subPromises);
+                const submissions = submissionsArrays.flat();
+
+                if (submissions.length === 0) return null;
+
+                // Map data for frontend
+                const studentMap = new Map(students.map(s => [s.userId, s.profile]));
+                const workMap = new Map(courseWork.map(cw => [cw.id, cw]));
+
+                const todoItems = submissions.map(sub => {
+                    const student = studentMap.get(sub.userId);
+                    const work = workMap.get(sub.courseWorkId);
+                    if (!student || !work) return null;
+
+                    return {
+                        id: sub.id,
+                        courseId: course.id,
+                        courseName: course.name,
+                        workId: sub.courseWorkId,
+                        workTitle: work.title,
+                        workLink: work.alternateLink,
+                        studentId: sub.userId,
+                        studentName: student.name.fullName,
+                        studentPhoto: student.photoUrl,
+                        submissionLink: sub.alternateLink,
+                        updateTime: sub.updateTime
+                    };
+                }).filter(Boolean);
+
+                if (todoItems.length === 0) return null;
+
+                return {
+                    courseId: course.id,
+                    courseName: course.name,
+                    todos: todoItems
+                };
+
+            } catch (err) {
+                console.error(`Todo fetch failed for course ${course.id}:`, err.message);
+                return null;
+            }
+        });
+
+        const results = await Promise.all(todosPromises);
+        const filteredResults = results.filter(Boolean); // Remove nulls (courses with no pending work)
+        
+        res.json(filteredResults);
+
+    } catch (error) {
+        console.error('Global todo fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch todos' });
     }
 });
 

@@ -18,6 +18,9 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
     *   Läs flödet (Announcements) från Classroom i en kompakt vy.
     *   **Privat Loggbok:** Skriv och spara personliga lektionsanteckningar (Markdown-stöd) kopplade till varje inlägg. Anteckningar sparas säkert per användare.
     *   **Kalender:** Filtrera inlägg per datum och se veckonummer.
+*   **Todo (Att Göra):**
+    *   Global lista över alla inlämningar som väntar på rättning tvärs över alla kurser.
+    *   Kompakt tabellvy för snabb hantering ("Inbox Zero").
 *   **Live Data:** Hämtar data direkt från Google Classroom API.
 *   **Sökfilter & Sortering:** 
     *   Filtrera på "Att rätta" för att snabbt hitta obehandlade inlämningar.

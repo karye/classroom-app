@@ -104,7 +104,23 @@ Appen har nu utökade exportmöjligheter via knappar i toppmenyn:
 
 ---
 
-## 4. Förslag till Förbättringar (Roadmap)
+## 4. Todo (Att Göra) - Nyhet
+
+En dedikerad vy för att hantera rättningsbördan ("Inbox Zero").
+
+*   **Global Lista:** Hämtar inlämningar från *alla* dina aktiva kurser samtidigt.
+*   **Design:** Extremt kompakt tabell (samma densitet som Matrix) för att visa maximalt antal rader.
+*   **Kolumner:**
+    1.  **Kurs:** Vilket klassrum uppgiften tillhör.
+    2.  **Elev:** Namn på eleven.
+    3.  **Uppgift:** Uppgiftens titel.
+    4.  **Inlämnad:** Datum och tidpunkt för inlämningen (sorterad nyast överst).
+    5.  **Länk:** En knapp för att öppna inlämningen direkt i Google Classroom för rättning.
+*   **Filtrering:** Använd kursväljaren i toppen för att se "Alla klassrum" eller filtrera på ett specifikt.
+
+---
+
+## 5. Förslag till Förbättringar (Roadmap)
 
 Här följer förslag på funktioner och UX-förbättringar för framtida versioner:
 

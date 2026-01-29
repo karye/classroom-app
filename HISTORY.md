@@ -25,6 +25,22 @@ Fokus låg på att göra matrisvyn mer visuell och logisk i sin hantering av upp
 *   **Bättre Rubriker:**
     *   Uppgiftsrubriker tillåter nu **två rader text** innan de klipps av, vilket gör det lättare att läsa långa titlar.
 
+### ✨ Ny Modul: Todo (Att Göra)
+*   **Global Överblick:**
+    *   En ny vy som aggregerar inlämnade uppgifter från *alla* aktiva kurser.
+    *   Visar endast uppgifter som har status `TURNED_IN` (Väntar på rättning).
+*   **Ultrakompakt Design:**
+    *   En enda sorterbar tabell (nyast överst) maximerad för att visa så många rader som möjligt.
+    *   Innehåller: Kurs, Elev, Uppgift, Inlämningstid och Direktlänk.
+*   **Filtrering:**
+    *   Fullt stöd för att filtrera listan via den globala kursväljaren i headern.
+    *   Möjlighet att uppdatera listan manuellt med en "tyst" laddning (ingen blinkande skärm).
+
+### 🐛 Buggfixar
+*   **Stream:** Ökat hämtningsgränsen för inlägget från 20 till 100 för att säkerställa att hela terminens historik syns.
+*   **Krasch:** Åtgärdat ett kritiskt fel där byte mellan vyer med tomt kurs-ID orsakade en krasch i Stream-vyn.
+*   **Navigation:** Fixat så att Todo-vyn hanterar "Alla klassrum" korrekt och inte stör Stream/Matrix-vyerna.
+
 ---
 
 ## [2026-01-28] - "Säkerhet & Gränssnittspolering"
