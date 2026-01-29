@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import axios from 'axios'
+import { format, getISOWeek, parseISO } from 'date-fns'
+import { sv } from 'date-fns/locale'
 import StreamView from './components/StreamView'
 import './App.css'
 
@@ -17,13 +19,27 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState({}) 
   const [showGraded, setShowGraded] = useState(true)
   const [showUngraded, setShowUngraded] = useState(true)
+  const [showPending, setShowPending] = useState(false)
   const [currentView, setCurrentView] = useState('matrix'); // 'matrix' | 'stream'
+  
+  // Stream View State
+  const [streamAnnouncements, setStreamAnnouncements] = useState([]);
+  const [streamNotes, setStreamNotes] = useState({});
+  const [streamLoading, setStreamLoading] = useState(false);
+  const [streamError, setStreamError] = useState(null);
 
   axios.defaults.withCredentials = true;
 
   useEffect(() => {
     checkLoginStatus();
   }, [])
+
+  // Fetch Stream Data when switching to Stream view or changing course while in Stream view
+  useEffect(() => {
+      if (currentView === 'stream' && selectedCourseId) {
+          fetchStreamData(selectedCourseId);
+      }
+  }, [currentView, selectedCourseId]);
 
   const checkLoginStatus = async () => {
     try {
@@ -38,6 +54,72 @@ function App() {
       setLoading(false);
     }
   }
+
+  const fetchStreamData = async (courseId) => {
+      setStreamLoading(true);
+      setStreamError(null);
+      try {
+          const [annRes, notesRes] = await Promise.all([
+              axios.get(`/api/courses/${courseId}/announcements`),
+              axios.get(`/api/notes/${courseId}`)
+          ]);
+          setStreamAnnouncements(annRes.data);
+          setStreamNotes(notesRes.data);
+      } catch (err) {
+          console.error("Failed to fetch stream data", err);
+          setStreamError("Kunde inte hämta inlägg.");
+      } finally {
+          setStreamLoading(false);
+      }
+  }
+
+  const handleSaveNote = async (postId, content) => {
+      await axios.post('/api/notes', {
+          courseId: selectedCourseId,
+          postId,
+          content
+      });
+      setStreamNotes(prev => ({ ...prev, [postId]: content }));
+  };
+
+  const handleExportLogbook = () => {
+      const lines = [];
+      const courseName = courses.find(c => c.id === selectedCourseId)?.name || 'Okänd kurs';
+      lines.push(`# Loggbok: ${courseName}`);
+      lines.push(`Exporterad: ${new Date().toLocaleDateString('sv-SE')}\n`);
+
+      streamAnnouncements.forEach(post => {
+          const postDate = parseISO(post.updateTime);
+          const dateStr = format(postDate, "yyyy-MM-dd HH:mm", { locale: sv });
+          const weekStr = getISOWeek(postDate);
+          
+          lines.push(`## ${dateStr} (v.${weekStr})`);
+          lines.push(`**Classroom:**\n${post.text || '(Ingen text)'}\n`);
+          
+          if (post.materials && post.materials.length > 0) {
+               lines.push(`*Material:* ${post.materials.map(m => {
+                   if (m.driveFile) return `[Drive] ${m.driveFile.driveFile.title}`;
+                   if (m.link) return `[Länk] ${m.link.title}`;
+                   if (m.youtubeVideo) return `[Video] ${m.youtubeVideo.title}`;
+                   return 'Fil';
+               }).join(', ')}\n`);
+          }
+
+          if (streamNotes[post.id]) {
+              lines.push(`\n**Mina Anteckningar:**\n${streamNotes[post.id]}\n`);
+          }
+          lines.push('---\n');
+      });
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${courseName}_loggbok_${new Date().toISOString().split('T')[0]}.md`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
 
   const fetchCourses = async () => {
     try {
@@ -114,14 +196,35 @@ function App() {
     return submissions.find(s => s.userId === studentId && s.courseWorkId === workId);
   }
 
-  const getSubmissionText = (sub) => {
-    if (!sub) return <i className="bi bi-square text-muted opacity-25" style={{ fontSize: '0.7rem' }}></i>;
-    if (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) {
-        return sub.assignedGrade;
+  const getSubmissionText = (sub, cw) => {
+    const isGraded = cw && cw.maxPoints > 0;
+
+    if (!sub) {
+        return isGraded ? "" : <i className="bi bi-dash-circle text-danger opacity-50" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
     }
-    return sub.state === 'TURNED_IN' ? <i className="bi bi-check-circle-fill text-primary"></i> : 
-           sub.state === 'RETURNED' ? <i className="bi bi-arrow-return-left text-success"></i> : 
-           <i className="bi bi-square text-muted opacity-50" style={{ fontSize: '0.7rem' }}></i>;
+    
+    // Om betyg finns (och är satt), visa det
+    if (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) {
+        return <span className="fw-bold" title={`Betyg: ${sub.assignedGrade}`}>{sub.assignedGrade}</span>;
+    }
+
+    // Om det är ett prov (med poäng), visa inga ikoner för tillstånd
+    if (isGraded) return "";
+
+    // Annars visa ikon baserat på status för vanliga uppgifter
+    switch (sub.state) {
+        case 'TURNED_IN':
+            return <i className="bi bi-check text-success fs-6" title="Inlämnad (Väntar på rättning)"></i>;
+        case 'RETURNED':
+            return <i className="bi bi-check-all text-success fs-6" title="Återlämnad (Klar)"></i>;
+        case 'CREATED':
+        case 'NEW':
+            return ""; // Pennan borttagen enligt önskemål
+        case 'RECLAIMED_BY_STUDENT':
+            return <i className="bi bi-arrow-counterclockwise text-warning" title="Återtaget av elev"></i>;
+        default:
+            return <i className="bi bi-dash-circle text-danger opacity-75" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
+    }
   }
 
   const getGradeColorByPercent = (percent) => {
@@ -130,6 +233,30 @@ function App() {
       if (percent < 70) return '#d9f7be'; 
       if (percent < 90) return '#95de64'; 
       return '#52c41a'; 
+  }
+
+  const getCellBackgroundColor = (sub, cw) => {
+      const isGraded = cw && cw.maxPoints > 0;
+
+      // 1. Prioritera betyg om det finns (Maxpoäng > 0 och betyg satt)
+      if (isGraded && sub && typeof sub.assignedGrade === 'number') {
+          const pct = (sub.assignedGrade / cw.maxPoints) * 100;
+          return getGradeColorByPercent(pct);
+      }
+
+      // 2. Statusbaserad färgning
+      if (!sub) {
+          return '#ffffff'; 
+      }
+
+      switch (sub.state) {
+          case 'RETURNED':
+              return '#d9f7be'; // Klar (Grön)
+          case 'TURNED_IN':
+              return '#f6ffed'; // Inlämnad (Ljusgrön/Mint)
+          default:
+              return '#ffffff'; // Påbörjade (utkast), återtagna eller saknade = Vit bakgrund
+      }
   }
 
   const calculateAveragePercent = (studentId, submissions, coursework) => {
@@ -347,7 +474,13 @@ function App() {
            const matchesText = cw.title.toLowerCase().includes(filterText.toLowerCase());
            const isGraded = cw.maxPoints && cw.maxPoints > 0;
            const matchesType = (isGraded && showGraded) || (!isGraded && showUngraded);
-           return matchesText && matchesType;
+           
+           let matchesPending = true;
+           if (showPending) {
+               matchesPending = details.submissions.some(s => s.courseWorkId === cw.id && s.state === 'TURNED_IN');
+           }
+
+           return matchesText && matchesType && matchesPending;
        });
        const topicMap = new Map();
        details.topics?.forEach(t => topicMap.set(t.topicId, t.name));
@@ -430,42 +563,64 @@ function App() {
                            <>
                                <div className="input-group input-group-sm" style={{ width: '200px' }}>
                                     <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
-                                    <input type="text" className="form-control border-start-0 ps-0" placeholder="Filter..." value={filterText} onChange={(e) => setAssignmentFilters(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} />
+                                    <input type="text" className="form-control border-start-0 ps-0" placeholder="Filtrera..." value={filterText} onChange={(e) => setAssignmentFilters(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} />
                                </div>
                                <div className="d-flex align-items-center gap-2 ms-2 me-3">
-                                    <div className="form-check form-check-inline m-0">
+                                    <div className="form-check form-check-inline m-0" title="Visa/dölj prov och uppgifter med poäng">
                                         <input className="form-check-input" type="checkbox" id="checkGraded" checked={showGraded} onChange={e => setShowGraded(e.target.checked)} />
                                         <label className="form-check-label small" htmlFor="checkGraded">Prov</label>
                                     </div>
-                                    <div className="form-check form-check-inline m-0">
+                                    <div className="form-check form-check-inline m-0" title="Visa/dölj uppgifter utan poäng">
                                         <input className="form-check-input" type="checkbox" id="checkUngraded" checked={showUngraded} onChange={e => setShowUngraded(e.target.checked)} />
                                         <label className="form-check-label small" htmlFor="checkUngraded">Uppg.</label>
                                     </div>
+                                    <div className="form-check form-check-inline m-0" title="Visa endast uppgifter med inlämningar att rätta">
+                                        <input className="form-check-input" type="checkbox" id="checkPending" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
+                                        <label className="form-check-label small" htmlFor="checkPending">Att rätta</label>
+                                    </div>
                                </div>
-                                                         <select onChange={(e) => setSortConfig(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} value={sortConfig[selectedCourseId] || 'name-asc'} className="form-select form-select-sm" style={{ width: '130px' }}>
+                                                         <select onChange={(e) => setSortConfig(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} value={sortConfig[selectedCourseId] || 'name-asc'} className="form-select form-select-sm" style={{ width: '130px' }} title="Sortera listan">
                                                             <option value="name-asc">A-Ö</option>
                                                             <option value="name-desc">Ö-A</option>
                                                             <option value="perf-struggle">Varning</option>
                                                             <option value="perf-top">Bäst</option>
                                                             <option value="submission-desc">Mest inlämnat</option>
-                                                        </select>                               <button onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)} className="btn btn-success btn-sm" title="Exportera Excel"><i className="bi bi-file-earmark-spreadsheet"></i></button>
+                                                        </select>                               <button onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)} className="btn btn-success btn-sm d-flex align-items-center gap-2" title="Exportera Excel"><i className="bi bi-file-earmark-spreadsheet"></i> <span className="d-none d-md-inline">Excel</span></button>
                                <div className="vr mx-2"></div>
                            </>
                            )}
+                           {currentView === 'stream' && selectedCourseId && (
+                               <>
+                                    <button onClick={handleExportLogbook} className="btn btn-success btn-sm d-flex align-items-center gap-2" title="Ladda ner loggbok som textfil">
+                                        <i className="bi bi-file-text"></i> <span className="d-none d-md-inline">Loggbok</span>
+                                    </button>
+                                    <div className="vr mx-2"></div>
+                               </>
+                           )}
                            {selectedCourseId && (
                                 <>
-                                    <button onClick={() => currentView === 'matrix' ? fetchCourseDetails(selectedCourseId, true) : null} disabled={loadingDetails[selectedCourseId]} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${loadingDetails[selectedCourseId] ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
-                                    {lastUpdated[selectedCourseId] && <span className="small text-muted ms-2" style={{ fontSize: '0.7rem' }}>Uppdaterad: {lastUpdated[selectedCourseId]}</span>}
+                                    <button onClick={() => currentView === 'matrix' ? fetchCourseDetails(selectedCourseId, true) : fetchStreamData(selectedCourseId)} disabled={currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
+                                    {lastUpdated[selectedCourseId] && currentView === 'matrix' && <span className="small text-muted ms-2" style={{ fontSize: '0.7rem' }}>Uppdaterad: {lastUpdated[selectedCourseId]}</span>}
                                 </>
                            )}
-                           <button onClick={handleLogout} className="btn btn-light btn-sm text-danger"><i className="bi bi-power"></i></button>
+                           <button onClick={handleLogout} className="btn btn-light btn-sm text-danger" title="Logga ut"><i className="bi bi-power"></i></button>
                        </div>
                    </header>
        
                    <main className="flex-grow-1 overflow-hidden d-flex flex-column position-relative bg-white">
                        {currentView === 'stream' ? (
                            <div className="flex-grow-1 overflow-auto bg-light">
-                               {selectedCourseId ? <StreamView courseId={selectedCourseId} /> : <div className="p-5 text-center text-muted">Välj ett klassrum ovan</div>}
+                               {selectedCourseId ? (
+                                   <StreamView 
+                                       courseId={selectedCourseId}
+                                       announcements={streamAnnouncements}
+                                       notes={streamNotes}
+                                       loading={streamLoading}
+                                       error={streamError}
+                                       onRefresh={() => fetchStreamData(selectedCourseId)}
+                                       onSaveNote={handleSaveNote}
+                                   />
+                               ) : <div className="p-5 text-center text-muted">Välj ett klassrum ovan</div>}
                            </div>
                        ) : selectedCourseId && details ? (
                            <div className="flex-grow-1 overflow-auto matrix-wrapper border-0 rounded-0 h-100">
@@ -492,11 +647,30 @@ function App() {
                                                    return (
                                                    <React.Fragment key={group.id}>
                                                        {isExpanded && group.assignments.map((cw, idx) => (
-                                                           <th key={cw.id} className="sticky-header-assign" style={{ borderLeft: idx === 0 ? '2px solid #dee2e6' : '1px solid #dee2e6', minWidth: '80px', maxWidth: '80px', width: '80px', fontSize: '0.6rem', backgroundColor: '#f8f9fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '2px' }} title={cw.title}>
-                                                               <a href={cw.alternateLink} target="_blank" rel="noreferrer" className="text-decoration-none text-muted stretched-link">{cw.title}</a>
+                                                           <th key={cw.id} className="sticky-header-assign" style={{ 
+                                                               borderLeft: idx === 0 ? '2px solid #dee2e6' : '1px solid #dee2e6', 
+                                                               minWidth: '80px', maxWidth: '80px', width: '80px', 
+                                                               fontSize: '0.65rem', backgroundColor: '#f8f9fa', 
+                                                               padding: '2px',
+                                                               height: '2.4rem', // Fixad höjd för 2 rader
+                                                               verticalAlign: 'top'
+                                                           }} title={cw.title}>
+                                                               <div style={{ 
+                                                                   display: '-webkit-box', 
+                                                                   WebkitLineClamp: '2', 
+                                                                   WebkitBoxOrient: 'vertical', 
+                                                                   overflow: 'hidden', 
+                                                                   lineHeight: '1.1',
+                                                                   wordBreak: 'break-word',
+                                                                   whiteSpace: 'normal'
+                                                               }}>
+                                                                   <a href={cw.alternateLink} target="_blank" rel="noreferrer" className="text-decoration-none text-muted">{cw.title}</a>
+                                                               </div>
                                                            </th>
                                                        ))}
-                                                       <th className="sticky-header-assign text-center bg-white" style={{ borderLeft: !isExpanded ? '2px solid #dee2e6' : '1px solid #dee2e6', minWidth: '80px', maxWidth: '80px', width: '80px', color: '#212529', fontWeight: 'bold', fontSize: '0.7rem' }}>Σ</th>
+                                                       <th className="sticky-header-assign text-center" style={{ borderLeft: '3px solid #adb5bd', minWidth: '80px', maxWidth: '80px', width: '80px', color: '#212529', fontWeight: 'bold', fontSize: '0.8rem', backgroundColor: '#f8f9fa' }} title="Bästa betyg (Max)">
+                                                           <i className="bi bi-bag-check text-muted" style={{ fontSize: '0.9rem' }}></i>
+                                                       </th>
                                                    </React.Fragment>
                                                );
                                                })}
@@ -507,7 +681,7 @@ function App() {
                                                const atRisk = isStudentAtRisk(student.userId, details.submissions, groupedWork);
                                                return (
                                                <tr key={student.userId} id={`row-${student.userId}`} className={selectedStudent === student.userId ? 'selected-row' : ''}>
-                                                   <td className="sticky-col-student align-middle ps-3" onClick={() => setSelectedStudent(selectedStudent === student.userId ? null : student.userId)} style={{ cursor: 'pointer', fontSize: '0.8rem' }}>
+                                                   <td className="sticky-col-student align-middle ps-3" onClick={() => setSelectedStudent(selectedStudent === student.userId ? null : student.userId)} style={{ cursor: 'pointer', fontSize: '0.8rem' }} title="Klicka för att markera rad">
                                                        <div className="d-flex align-items-center">
                                                            <span className="text-muted small me-2" style={{minWidth: '20px', display: 'inline-block'}}>{index + 1}.</span>
                                                            <span className="text-truncate me-2">{student.profile.name.fullName}</span>
@@ -529,22 +703,34 @@ function App() {
                                                         if (sub.assignedGrade > maxGrade) maxGrade = sub.assignedGrade;
                                                     }
                                                     if (!isExpanded) return null;
-                                                    const gradeColor = getGradeColorByPercent(pct);
+                                                    const cellColor = getCellBackgroundColor(sub, cw);
                                                     return (
-                                                        <td key={cw.id} className="grade-cell text-center p-0 position-relative" style={{ borderLeft: idx === 0 ? '2px solid #dee2e6' : '1px solid #dee2e6', backgroundColor: gradeColor === 'inherit' ? '#f8f9fa' : gradeColor, color: pct >= 90 ? 'white' : 'inherit', fontSize: '0.75rem' }}>
-                                                            <a href={sub?.alternateLink || cw.alternateLink} target="_blank" rel="noreferrer" className="grade-link w-100 h-100 d-flex align-items-center justify-content-center text-decoration-none text-reset">{getSubmissionText(sub)}</a>
+                                                        <td key={cw.id} className="grade-cell text-center p-0 position-relative" style={{ borderLeft: idx === 0 ? '2px solid #dee2e6' : '1px solid #dee2e6', backgroundColor: cellColor, color: pct >= 90 ? 'white' : 'inherit', fontSize: '0.75rem' }}>
+                                                            <a href={sub?.alternateLink || cw.alternateLink} target="_blank" rel="noreferrer" className="grade-link w-100 h-100 d-flex align-items-center justify-content-center text-decoration-none text-reset">{getSubmissionText(sub, cw)}</a>
                                                         </td>
                                                     );
                                                 });
                                                 const maxColor = getGradeColorByPercent(maxGradePercent);
                                                 
+                                                // Check for pending reviews (TURNED_IN)
+                                                const hasPendingReview = group.assignments.some(cw => {
+                                                    const sub = getSubmission(student.userId, cw.id, details.submissions);
+                                                    return sub && sub.state === 'TURNED_IN';
+                                                });
+
                                                 let summaryContent = '-';
-                                                let summaryStyle = { borderLeft: !isExpanded ? '2px solid #dee2e6' : '1px solid #dee2e6', fontSize: '0.75rem' };
+                                                let summaryStyle = { 
+                                                    borderLeft: '3px solid #adb5bd', 
+                                                    fontSize: '0.8rem',
+                                                    backgroundColor: '#f8f9fa' 
+                                                };
+                                                let summaryTitle = "";
                                                 
                                                 if (showGraded) {
                                                     summaryStyle.backgroundColor = maxColor;
                                                     summaryStyle.color = maxGradePercent >= 90 ? 'white' : 'inherit';
                                                     summaryContent = hasGrade ? maxGrade : '-';
+                                                    summaryTitle = hasGrade ? `Bästa resultat: ${maxGrade}` : "";
                                                 } else {
                                                     let turnInCount = 0;
                                                     group.assignments.forEach(cw => {
@@ -561,13 +747,21 @@ function App() {
                                                     summaryStyle.backgroundColor = getGradeColorByPercent(submissionPct);
                                                     summaryStyle.color = submissionPct >= 90 ? 'white' : 'inherit';
                                                     summaryContent = turnInCount;
+                                                    summaryTitle = `Inlämningar: ${turnInCount}`;
+                                                }
+
+                                                if (hasPendingReview) {
+                                                    summaryTitle += (summaryTitle ? " | " : "") + "Att rätta!";
                                                 }
 
                                                 return (
                                                     <React.Fragment key={group.id}>
                                                         {cells}
-                                                        <td className="text-center fw-bold align-middle" style={summaryStyle}>
-                                                            {summaryContent}
+                                                        <td className="text-center fw-bold align-middle" style={summaryStyle} title={summaryTitle}>
+                                                            <div className="d-flex align-items-center justify-content-center gap-1">
+                                                                {summaryContent}
+                                                                {hasPendingReview && showPending && <i className="bi bi-check-circle text-muted" style={{ fontSize: '0.7rem' }}></i>}
+                                                            </div>
                                                         </td>
                                                     </React.Fragment>
                                                 );
@@ -588,7 +782,7 @@ function App() {
                                                             {calculateColumnAverage(cw.id, details.students, details.submissions)}
                                                         </td>
                                                     ))}
-                                                     <td className="text-center bg-light" style={{ borderLeft: !isExpanded ? '2px solid #343a40' : '1px solid #dee2e6', borderTop: '2px solid #343a40', fontSize: '0.7rem' }}>
+                                                     <td className="text-center fw-bold" style={{ borderLeft: '3px solid #adb5bd', borderTop: '2px solid #343a40', fontSize: '0.75rem', backgroundColor: '#f8f9fa' }}>
                                                             {calculateGroupSummaryFooter(group, details.students, details.submissions)}
                                                         </td>
                                                 </React.Fragment>

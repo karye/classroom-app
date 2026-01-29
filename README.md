@@ -7,19 +7,21 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
 *   **Matrisvy:** Samlad vy av alla elevers resultat i en kurs.
 *   **Ämnesgruppering:** Uppgifter grupperas automatiskt under sina Classroom-ämnen.
 *   **Max-betyg:** Beräknar automatiskt högsta uppnådda betyg (procentuellt) inom ett ämne/grupp.
-*   **Dynamisk Expandering:** Visa/dölj detaljerade uppgifter per ämne för att minska "brus".
-*   **Färgkodning (Procentbaserad):**
+*   **Färgkodning & Status:**
+    *   ⚪ **Vit:** Saknas / Utkast (Minskar stress och rött brus).
+    *   🌱 **Mintgrön:** Inlämnad (Väntar på rättning) eller Pågående.
     *   🔴 **0-49%:** Ej godkänt
     *   🟡 **50-69%:** Godkänt (E)
     *   🟢 **70-89%:** Väl Godkänt (C)
     *   🌟 **90-100%:** Mycket Väl Godkänt (A)
-    *   *För inlämningsuppgifter används en relativ skala baserad på klassens "bästa" inlämningsfrekvens.*
 *   **Stream & Loggbok:**
     *   Läs flödet (Announcements) från Classroom i en kompakt vy.
     *   **Privat Loggbok:** Skriv och spara personliga lektionsanteckningar (Markdown-stöd) kopplade till varje inlägg. Anteckningar sparas säkert per användare.
     *   **Kalender:** Filtrera inlägg per datum och se veckonummer.
 *   **Live Data:** Hämtar data direkt från Google Classroom API.
-*   **Sökfilter & Sortering:** Filtrera uppgifter och sortera elever på prestation eller inlämningsflit.
+*   **Sökfilter & Sortering:** 
+    *   Filtrera på "Att rätta" för att snabbt hitta obehandlade inlämningar.
+    *   Sortera elever på prestation eller inlämningsflit.
 
 ## 🛠 Teknikstack
 

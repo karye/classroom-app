@@ -5,12 +5,62 @@ const dotenv = require('dotenv');
 const cookieSession = require('cookie-session');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const db = require('./database');
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// --- Encryption Setup ---
+const ALGORITHM = 'aes-256-cbc';
+const MASTER_KEY = process.env.MASTER_KEY;
+
+if (!MASTER_KEY) {
+    console.warn("WARNING: MASTER_KEY not set in .env! Notes will be saved unencrypted (insecure).");
+    console.warn("To fix: Add MASTER_KEY=<random_string> to backend/.env");
+}
+
+const deriveUserKey = (userId) => {
+    if (!MASTER_KEY) return null;
+    // Derive a unique 32-byte key for the user using the master key and their ID
+    return crypto.scryptSync(MASTER_KEY, userId, 32);
+};
+
+const encryptNote = (text, userId) => {
+    const key = deriveUserKey(userId);
+    if (!key) return text; // Fallback: save as plain text if no key
+
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return `${iv.toString('hex')}:${encrypted}`;
+};
+
+const decryptNote = (text, userId) => {
+    const key = deriveUserKey(userId);
+    if (!key) return text;
+
+    // Check if text matches encrypted format (iv:content)
+    const parts = text.split(':');
+    if (parts.length !== 2) return text; // Assume plain text fallback
+
+    try {
+        const iv = Buffer.from(parts[0], 'hex');
+        const encryptedText = parts[1];
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    } catch (e) {
+        console.warn(`Decryption failed for note (User: ${userId}). Returning original.`);
+        return text;
+    }
+};
+// ------------------------
+
 app.set('trust proxy', true);
 app.use(express.json());
 
@@ -290,7 +340,7 @@ app.get('/api/notes/:courseId', checkAuth, (req, res) => {
             // Transform array to object: { "postId1": "content1", ... }
             const notesMap = {};
             rows.forEach(row => {
-                notesMap[row.post_id] = row.content;
+                notesMap[row.post_id] = decryptNote(row.content, userId);
             });
             res.json(notesMap);
         }
@@ -304,6 +354,8 @@ app.post('/api/notes', checkAuth, (req, res) => {
     if (!userId) return res.status(401).json({ error: 'User ID missing' });
     if (!courseId || !postId) return res.status(400).json({ error: 'Missing fields' });
 
+    const encryptedContent = encryptNote(content, userId);
+
     // Upsert (Insert or Replace)
     const sql = `
         INSERT INTO notes (user_id, course_id, post_id, content) 
@@ -312,7 +364,7 @@ app.post('/api/notes', checkAuth, (req, res) => {
         DO UPDATE SET content = excluded.content, updated_at = CURRENT_TIMESTAMP
     `;
     
-    db.run(sql, [userId, courseId, postId, content], function(err) {
+    db.run(sql, [userId, courseId, postId, encryptedContent], function(err) {
         if (err) {
             console.error('DB save error:', err);
             return res.status(500).json({ error: 'Failed to save note' });

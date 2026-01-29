@@ -1,56 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { format, getISOWeek, isSameDay, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
-const StreamView = ({ courseId }) => {
-    const [announcements, setAnnouncements] = useState([]);
-    const [notes, setNotes] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNote, courseId }) => {
     const [editingNoteId, setEditingNoteId] = useState(null);
     const [tempNoteContent, setTempNoteContent] = useState("");
     const [savingNote, setSavingNote] = useState(false);
     const [expandedPosts, setExpandedPosts] = useState({});
     const [selectedDate, setSelectedDate] = useState(undefined);
 
-    useEffect(() => {
-        if (!courseId) return;
-        const loadAll = async () => {
-            setLoading(true);
-            await Promise.all([fetchAnnouncements(), fetchNotes()]);
-            setLoading(false);
-        };
-        loadAll();
-    }, [courseId]);
-
     const togglePost = (postId) => {
         setExpandedPosts(prev => ({
             ...prev,
             [postId]: !prev[postId]
         }));
-    };
-
-    const fetchAnnouncements = async () => {
-        try {
-            const res = await axios.get(`/api/courses/${courseId}/announcements`);
-            setAnnouncements(res.data);
-        } catch (err) {
-            console.error("Failed to fetch announcements", err);
-            setError("Kunde inte hämta inlägg. Har du godkänt behörigheten?");
-        }
-    };
-
-    const fetchNotes = async () => {
-        try {
-            const res = await axios.get(`/api/notes/${courseId}`);
-            setNotes(res.data);
-        } catch (err) {
-            console.error("Failed to fetch notes", err);
-        }
     };
 
     const handleStartEdit = (postId, existingContent) => {
@@ -61,20 +27,14 @@ const StreamView = ({ courseId }) => {
         }
     };
 
-    const handleSaveNote = async (postId) => {
+    const handleSaveWrapper = async (postId) => {
         setSavingNote(true);
         try {
-            await axios.post('/api/notes', {
-                courseId,
-                postId,
-                content: tempNoteContent
-            });
-            setNotes(prev => ({ ...prev, [postId]: tempNoteContent }));
+            await onSaveNote(postId, tempNoteContent);
             setEditingNoteId(null);
         } catch (err) {
-            console.error("Save error details:", err.response || err);
-            const msg = err.response?.status === 401 ? "Du är utloggad. Ladda om sidan." : "Kunde inte spara. Försök igen.";
-            alert(msg);
+            console.error("Save error:", err);
+            alert("Kunde inte spara anteckning.");
         } finally {
             setSavingNote(false);
         }
@@ -115,7 +75,7 @@ const StreamView = ({ courseId }) => {
             <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
                 <i className="bi bi-exclamation-circle fs-1 mb-2"></i>
                 <p>{error}</p>
-                <button className="btn btn-outline-primary btn-sm" onClick={fetchAnnouncements}>Försök igen</button>
+                <button className="btn btn-outline-primary btn-sm" onClick={onRefresh}>Försök igen</button>
             </div>
         );
     }
@@ -147,7 +107,7 @@ const StreamView = ({ courseId }) => {
                         />
                     </div>
                     {selectedDate && (
-                        <button className="btn btn-outline-secondary w-100 btn-sm" onClick={() => setSelectedDate(undefined)}>
+                        <button className="btn btn-outline-secondary w-100 btn-sm" onClick={() => setSelectedDate(undefined)} title="Rensa datumfilter">
                             <i className="bi bi-x-circle me-2"></i>Visa alla inlägg
                         </button>
                     )}
@@ -174,15 +134,15 @@ const StreamView = ({ courseId }) => {
                             
                             return (
                             <div key={post.id} className="card mb-3 shadow-sm border-0">
-                                <div className={`card-header bg-white border-bottom-0 pt-3 px-4 d-flex justify-content-between align-items-start ${!isExpanded ? 'pb-2' : ''}`} style={{cursor: 'pointer'}} onClick={() => togglePost(post.id)}>
+                                <div className={`card-header bg-white border-bottom-0 pt-3 px-4 d-flex justify-content-between align-items-start ${!isExpanded ? 'pb-2' : ''}`} style={{cursor: 'pointer'}} onClick={() => togglePost(post.id)} title={isExpanded ? "Klicka för att minimera" : "Klicka för att läsa mer"}>
                                     <div className="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden">
                                         <div className={`bg-light text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${!isExpanded ? 'border' : ''}`} style={{width: '32px', height: '32px'}}>
                                             <i className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}></i>
                                         </div>
                                         <div className="flex-grow-1 overflow-hidden">
                                             <div className="d-flex align-items-center gap-2">
-                                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">v.{getISOWeek(postDate)}</span>
-                                                <small className="text-muted fw-bold" style={{fontSize: '0.75rem'}}>
+                                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" title="Vecka">v.{getISOWeek(postDate)}</span>
+                                                <small className="text-muted fw-bold" style={{fontSize: '0.75rem'}} title={format(postDate, "yyyy-MM-dd HH:mm")}>
                                                     {format(postDate, "d MMM yyyy HH:mm", { locale: sv })}
                                                 </small>
                                                 {hasNotes && <i className="bi bi-journal-check text-warning" title="Har anteckning"></i>}
@@ -231,7 +191,7 @@ const StreamView = ({ courseId }) => {
                                         {editingNoteId === post.id ? (
                                             <div className="mt-2">
                                                 <textarea 
-                                                    className="form-control form-control-sm mb-2 font-monospace" 
+                                                    className="form-control form-control-sm mb-2 font-monospace"
                                                     rows="6" 
                                                     placeholder="Stödjer **fetstil**, *kursiv*, - listor..."
                                                     value={tempNoteContent}
@@ -241,13 +201,13 @@ const StreamView = ({ courseId }) => {
                                                 <div className="d-flex gap-2 justify-content-end align-items-center">
                                                     <small className="text-muted me-auto">Markdown stöds</small>
                                                     <button 
-                                                        className="btn btn-sm btn-outline-secondary" 
+                                                        className="btn btn-sm btn-outline-secondary"
                                                         onClick={() => setEditingNoteId(null)}
                                                         disabled={savingNote}
                                                     > Avbryt </button>
                                                     <button 
-                                                        className="btn btn-sm btn-primary" 
-                                                        onClick={() => handleSaveNote(post.id)}
+                                                        className="btn btn-sm btn-primary"
+                                                        onClick={() => handleSaveWrapper(post.id)}
                                                         disabled={savingNote}
                                                     >
                                                         {savingNote ? <span className="spinner-border spinner-border-sm me-1"></span> : null}

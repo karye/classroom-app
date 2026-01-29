@@ -9,12 +9,20 @@ Applikationen har en **Hierarkisk Layout** som utgår från:
 2.  **Fullskärms-matris:** Resten av fönstret dedikeras till en stor tabell (Heatmap) med elever och uppgifter.
 
 ### Färgschema & Visuell Feedback
-Färgkodning baseras på **procent** av maxpoängen för varje uppgift:
+Färgkodning är nu mer sofistikerad och skiljer på *Prov* (Poängsatta) och *Uppgifter* (Ej poängsatta).
 
-*   🔴 **0-49%:** Ej godkänt (`#ffccc7`)
-*   🟡 **50-69%:** Godkänt (`#d9f7be`)
-*   🟢 **70-89%:** Bra (`#95de64`)
-*   🌟 **90-100%:** Utmärkt (`#52c41a` med vit text)
+#### 1. Prov (Poängsatta uppgifter)
+*   ⚪ **Vit:** Ingen inlämning / Eleven saknas i uppgiften.
+*   🌱 **Mintgrön (`#f6ffed`):** Inlämnad (Väntar på rättning).
+*   🔴 **Röd (`#ffccc7`):** 0-49% (Underkänt).
+*   🟡 **Gul (`#d9f7be`):** 50-69% (Godkänt/E).
+*   🟢 **Grön (`#95de64`):** 70-89% (Väl Godkänt/C).
+*   🌟 **Mörkgrön (`#52c41a`):** 90-100% (Mycket Väl Godkänt/A).
+
+#### 2. Uppgifter (Ej poängsatta)
+*   ⚪ **Vit:** Saknas, Utkast eller Återtaget. (Ingen färg för att minska "rött brus").
+*   🌱 **Mintgrön:** Inlämnad (`bi-check`).
+*   🟢 **Grön:** Återlämnad/Klar (`bi-check-all`).
 
 ---
 
@@ -39,27 +47,26 @@ Detta är kärnkomponenten som tar upp hela skärmen.
     *   **Varning:** En röd triangel (⚠️) visas bredvid eleven om riskbedömningen slår till.
 2.  **Kolumner (X-axel):**
     *   **Gruppering:** Uppgifter är grupperade efter sina "Topics" (Ämnesområden) i Classroom, sorterade alfabetiskt.
+    *   **Rubriker:** Visar upp till två rader text för bättre läsbarhet.
     *   **Expandering:** Varje ämne kan fällas ut/in.
-        *   **Ihopfälld:** Visar endast en kolumn: "Max". Detta visar elevens *bästa procentuella resultat* inom det ämnet.
-        *   **Utfälld:** Visar alla individuella uppgifter inom ämnet (smala 50px kolumner) + Max-kolumnen. Kolumnerna får grå bakgrund för tydlighet.
+        *   **Ihopfälld:** Visar endast en kolumn: "Max" (Ikon: `bi-bag-check`).
+        *   **Utfälld:** Visar alla individuella uppgifter inom ämnet + Max-kolumnen. Max-kolumnen har en tydlig gråmarkering och tjockare kant.
 3.  **Filtrering:**
-    *   Ett sökfält tillåter filtrering av uppgiftsnamn i realtid.
+    *   **Text:** Sökfält tillåter filtrering av uppgiftsnamn i realtid.
+    *   **Prov/Uppgifter:** Checkboxar för att visa/dölja poängsatta respektive ej poängsatta moment.
+    *   **Att Rätta:** Visar endast uppgifter där det finns inlämningar som väntar på bedömning.
 
 ### D. Databearbetning (Logik)
 Appen visar inte bara rådata utan gör beräkningar:
-*   **Status-ikoner:**
-    *   <i class="bi bi-check-circle-fill"></i> Inlämnad
-    *   <i class="bi bi-arrow-return-left"></i> Återlämnad
-    *   <i class="bi bi-pencil-fill"></i> Påbörjad (Created)
-    *   <i class="bi bi-square"></i> Ej inlämnad/Ej bedömd
-*   **Max-värde:** För varje ämnesgrupp beräknas den högsta procenten en elev uppnått.
+*   **Status-ikoner (Uppdaterade):**
+    *   <i class="bi bi-check"></i> **Inlämnad:** Eleven har lämnat in (Mintgrön bakgrund).
+    *   <i class="bi bi-check-all"></i> **Återlämnad (Klar):** Bedömd och klar (Grön bakgrund).
+    *   **Utkast/Påbörjad:** Visas med mintgrön bakgrund utan ikon.
+*   **Max-värde & Att Rätta:** 
+    *   För varje ämnesgrupp beräknas den högsta procenten.
+    *   **Att rätta-varning:** En liten cirkel (<i class="bi bi-check-circle"></i>) visas i summakolumnen *endast* när filtret "Att rätta" är aktivt.
 *   **Riskhantering:** En elev flaggas som "Risk" (⚠️) om eleven har **minst ett ämne** där det bästa betyget (Max-kolumnen) är **under 50%**.
-    *   *OBS:* Uppgifter som saknas (ej inlämnade/betygsatta) räknas **inte** som underkänt för varningen. Varningen gäller endast konstaterade misslyckanden.
-*   **Sortering:**
-    *   **Namn:** A-Ö eller Ö-A.
-    *   **Prestation (Varning):** Sorterar efter lägst genomsnittsbetyg.
-    *   **Prestation (Bäst):** Sorterar efter högst genomsnittsbetyg.
-    *   **Mest inlämnat:** Sorterar efter flest antal inlämnade/klara uppgifter (baserat på aktuellt filter).
+    *   *OBS:* Uppgifter som saknas (ej inlämnade/betygsatta) räknas **inte** som underkänt för varningen (de har vit bakgrund).
 
 ### E. Relativ Färgkodning (Inlämningar)
 När matrisen visar uppgifter (ej betygssatta prov), ändras logiken för färgkodning i summakolumnen:
@@ -80,10 +87,20 @@ En separat vy ("Stream") ger läraren möjlighet att följa flödet och planera 
     *   En månadskalender till vänster visar vilka dagar som har inlägg (markerade med prick).
     *   Klicka på ett datum för att filtrera flödet.
     *   Visar **veckonummer** för enkel planering.
-*   **Privat Loggbok (SQLite):**
+*   **Privat Loggbok (Krypterad):**
     *   Varje inlägg har en dedikerad "Loggbok"-sektion (högerkolumn på desktop).
-    *   Anteckningar är **privata** (kopplade till ditt Google ID) och sparas i en databas på servern.
+    *   Anteckningar sparas i en lokal SQLite-databas.
+    *   **Säkerhet:** Alla anteckningar krypteras med **AES-256-CBC** och en unik nyckel per användare (härledd från en Master Key och ditt Google ID). Ingen annan kan läsa dina tankar.
     *   **Markdown-stöd:** Anteckningar kan formateras med fetstil, listor etc.
+
+### Exportfunktioner
+Appen har nu utökade exportmöjligheter via knappar i toppmenyn:
+1.  **Exportera Excel (Matrix-vy):** Laddar ner en CSV-fil med hela betygstabellen.
+2.  **Exportera Loggbok (Stream-vy):** Genererar en snygg Markdown-fil (`.md`) med alla inlägg och dina privata anteckningar för den valda kursen (eller vald dag). Perfekt för arkivering eller utskrift.
+
+### Språk & Hjälp
+*   **Svenska:** Hela gränssnittet (inklusive tooltips vid hovring) är nu på svenska.
+*   **Tooltips:** Hovra över ikoner, rubriker eller knappar för att få en förklaring av vad de gör.
 
 ---
 
