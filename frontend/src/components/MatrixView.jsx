@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { dbGet, dbSet } from '../db';
 
+// Components
+import LoadingSpinner from './common/LoadingSpinner';
+import ExportPreviewModal from './common/ExportPreviewModal';
+import StudentSummary from './matrix/StudentSummary';
+import MatrixTable from './matrix/MatrixTable';
+
 const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
     const [details, setDetails] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -9,9 +15,15 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
     const [showGraded, setShowGraded] = useState(false);
     const [showUngraded, setShowUngraded] = useState(true);
     const [showPending, setShowPending] = useState(false);
+    const [showHeatmap, setShowHeatmap] = useState(localStorage.getItem('matrix_show_heatmap') !== 'false'); // Default true
     const [sortType, setSortType] = useState('name-asc');
     const [expandedTopics, setExpandedTopics] = useState({});
     const [selectedStudent, setSelectedStudent] = useState(null);
+    
+    // Export State
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportContent, setExportContent] = useState('');
+    const [exportFilename, setExportFilename] = useState('');
 
     // Helper to check if a string matches any filter
     const matchesFilterList = (text, filters) => {
@@ -24,6 +36,10 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
         setLoading(val);
         if (onLoading) onLoading(val);
     };
+
+    useEffect(() => {
+        localStorage.setItem('matrix_show_heatmap', showHeatmap);
+    }, [showHeatmap]);
 
     // Load from cache on mount or course change
     useEffect(() => {
@@ -85,35 +101,44 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
 
     const getSubmissionText = (sub, cw) => {
         const isGraded = cw && cw.maxPoints > 0;
-        if (!sub) return isGraded ? "" : <i className="bi bi-dash-circle text-danger opacity-50" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
+        if (!sub) return isGraded ? "" : <i className="bi bi-dash text-muted opacity-50" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
         if (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) return <span className="fw-bold">{sub.assignedGrade}</span>;
         if (isGraded) return "";
         switch (sub.state) {
             case 'TURNED_IN': return <i className="bi bi-check text-success fs-6" title="Inlämnad"></i>;
             case 'RETURNED': return <i className="bi bi-check-all text-success fs-6" title="Klar"></i>;
             case 'RECLAIMED_BY_STUDENT': return <i className="bi bi-arrow-counterclockwise text-warning" title="Återtaget"></i>;
-            default: return <i className="bi bi-dash-circle text-danger opacity-75" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
+            default: return <i className="bi bi-dash text-muted opacity-75" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
         }
     };
 
     const getGradeColorByPercent = (percent) => {
         if (percent === null || typeof percent === 'undefined' || percent < 0) return 'inherit';
-        if (percent < 50) return '#ffccc7'; 
-        if (percent < 70) return '#d9f7be'; 
-        if (percent < 90) return '#95de64'; 
-        return '#52c41a'; 
+        if (percent < 50) return 'var(--grade-fail)'; 
+        if (percent < 70) return 'var(--grade-pass)'; 
+        if (percent < 90) return 'var(--grade-good)'; 
+        return 'var(--grade-high)'; 
     };
 
     const getCellBackgroundColor = (sub, cw) => {
         const isGraded = cw && cw.maxPoints > 0;
+        
+        // 1. Graded work gets heatmap colors based on score (if enabled)
         if (isGraded && sub && typeof sub.assignedGrade === 'number') {
-            return getGradeColorByPercent((sub.assignedGrade / cw.maxPoints) * 100);
+            return showHeatmap ? getGradeColorByPercent((sub.assignedGrade / cw.maxPoints) * 100) : '#ffffff';
         }
+        
         if (!sub) return '#ffffff';
+
         switch (sub.state) {
-            case 'RETURNED': return '#d9f7be';
-            case 'TURNED_IN': return '#f6ffed';
-            default: return '#ffffff';
+            case 'TURNED_IN': 
+                // 2. Action needed: Light blue background (only if heatmap is on)
+                return showHeatmap ? 'var(--primary-bg-light)' : '#ffffff';
+            case 'RETURNED': 
+                // 3. Done (ungraded): White background (icon shows status)
+                return '#ffffff'; 
+            default: 
+                return '#ffffff';
         }
     };
 
@@ -161,43 +186,79 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
         return count > 0 ? totalPct / count : 0;
     };
 
-    const downloadCSV = (name, groupedWork, students, submissions) => {
+    const handleGenerateCSV = (name, groupedWork, students, submissions) => {
+        const SEP = ';';
+        const escape = (val) => `"${String(val === 0 ? 0 : (val || '')).replace(/"/g, '""')}"`;
+
+        // Build headers
         const headerRow = ['Elev'];
         groupedWork.forEach(g => {
             g.assignments.forEach(cw => headerRow.push(`[${g.name}] ${cw.title}`));
-            headerRow.push(`[${g.name}] MAX`);
+            headerRow.push(`[${g.name}] ${showGraded ? 'MAX Betyg' : 'Antal Klara'}`);
         });
+        
+        // Build data rows
         const bodyRows = students.map(std => {
-            const row = [`"${std.profile.name.fullName}"`];
+            const row = [std.profile.name.fullName];
             groupedWork.forEach(g => {
-                 let max = -1, hasGrade = false;
+                 let maxGrade = -1;
+                 let hasGrade = false;
+                 let turnInCount = 0;
+
                  g.assignments.forEach(cw => {
                      const sub = submissions.find(s => s.userId === std.userId && s.courseWorkId === cw.id);
-                     row.push(sub && typeof sub.assignedGrade !== 'undefined' ? sub.assignedGrade : '');
-                     if (sub && typeof sub.assignedGrade === 'number') {
-                         hasGrade = true;
-                         if (sub.assignedGrade > max) max = sub.assignedGrade;
+                     
+                     let cellValue = '';
+                     if (sub) {
+                         // Check for grade
+                         if (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) {
+                             cellValue = sub.assignedGrade;
+                             hasGrade = true;
+                             if (sub.assignedGrade > maxGrade) maxGrade = sub.assignedGrade;
+                             turnInCount++;
+                         } else {
+                             // Fallback to status
+                             switch (sub.state) {
+                                 case 'TURNED_IN': 
+                                    cellValue = 'Inlämnad'; 
+                                    turnInCount++;
+                                    break;
+                                 case 'RETURNED': 
+                                    cellValue = 'Klar'; 
+                                    turnInCount++;
+                                    break;
+                                 case 'RECLAIMED_BY_STUDENT': 
+                                    cellValue = 'Återtaget'; 
+                                    break;
+                             }
+                         }
                      }
+                     row.push(cellValue);
                  });
-                 row.push(hasGrade ? max : '');
+
+                 // Add summary column for this group
+                 if (showGraded) {
+                     row.push(hasGrade ? maxGrade : '');
+                 } else {
+                     row.push(turnInCount > 0 ? turnInCount : '0');
+                 }
             });
-            return row.join(',');
+            return row;
         });
-        const csvContent = [headerRow.join(','), ...bodyRows].join('\n');
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${name}_matrix.csv`;
-        link.click();
+
+        // Add BOM and separator hint for Excel UTF-8 support
+        const csvContent = '\uFEFF' + 'sep=' + SEP + '\n' + 
+            [headerRow, ...bodyRows]
+            .map(row => row.map(escape).join(SEP))
+            .join('\n');
+        
+        setExportContent(csvContent);
+        setExportFilename(`${name}_matrix.csv`);
+        setShowExportModal(true);
     };
 
     if (loading && !details) {
-        return (
-            <div className="d-flex justify-content-center align-items-center h-100">
-                <i className="bi bi-arrow-clockwise spin text-primary" style={{ fontSize: '3rem' }}></i>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     if (!details) return null;
@@ -260,89 +321,25 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
 
     return (
         <div className="d-flex flex-column h-100 position-relative">
+            {/* Export Modal */}
+            {showExportModal && (
+                <ExportPreviewModal 
+                    title="Exportera till Excel (CSV)"
+                    content={exportContent}
+                    filename={exportFilename}
+                    onClose={() => setShowExportModal(false)}
+                />
+            )}
+
             {/* Student Summary Overlay */}
             {selectedStudentData && (
-                <div className="student-summary-overlay no-print-bg" onClick={() => setSelectedStudent(null)}>
-                    <div className="student-summary-content d-flex flex-column" onClick={e => e.stopPropagation()}>
-                        <div className="student-summary-header d-flex justify-content-between align-items-center">
-                            <div className="d-flex align-items-center gap-3">
-                                {selectedStudentData.profile.photoUrl ? (
-                                    <img src={selectedStudentData.profile.photoUrl} alt="" className="rounded-circle border" style={{ width: '48px', height: '48px' }} />
-                                ) : (
-                                    <div className="bg-light rounded-circle border d-flex align-items-center justify-content-center text-muted" style={{ width: '48px', height: '48px' }}>
-                                        <i className="bi bi-person fs-4"></i>
-                                    </div>
-                                )}
-                                <div>
-                                    <h4 className="mb-0 fw-bold">{selectedStudentData.profile.name.fullName}</h4>
-                                    <span className="text-muted">{courseName}</span>
-                                </div>
-                            </div>
-                            <div className="d-flex gap-2 no-print">
-                                <button className="btn btn-outline-primary d-flex align-items-center gap-2" onClick={() => window.print()}>
-                                    <i className="bi bi-printer"></i> Skriv ut
-                                </button>
-                                <button className="btn btn-light" onClick={() => setSelectedStudent(null)}>
-                                    <i className="bi bi-x-lg"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div className="student-summary-body">
-                            {groupedWork.map(group => (
-                                <div key={group.id} className="mb-5">
-                                    <h5 className="text-primary border-bottom pb-2 fw-bold mb-3">{group.name.toUpperCase()}</h5>
-                                    <table className="table table-sm table-hover border-top">
-                                        <thead>
-                                            <tr className="table-light">
-                                                <th className="ps-3 py-2 border-0" style={{ width: '60%' }}>UPPGIFT</th>
-                                                <th className="py-2 border-0 text-center" style={{ width: '20%' }}>STATUS</th>
-                                                <th className="py-2 border-0 text-end pe-3" style={{ width: '20%' }}>RESULTAT</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {group.assignments.map(cw => {
-                                                const sub = getSubmission(selectedStudentData.userId, cw.id);
-                                                let statusIcon = <i className="bi bi-dash-circle text-danger opacity-75" title="Ej inlämnad"></i>;
-                                                let resultText = "-";
-
-                                                if (sub) {
-                                                    switch (sub.state) {
-                                                        case 'TURNED_IN': 
-                                                            statusIcon = <i className="bi bi-check text-success fs-5" title="Inlämnad"></i>;
-                                                            break;
-                                                        case 'RETURNED': 
-                                                            statusIcon = <i className="bi bi-check-all text-success fs-5" title="Klar"></i>;
-                                                            break;
-                                                        case 'RECLAIMED_BY_STUDENT': 
-                                                            statusIcon = <i className="bi bi-arrow-counterclockwise text-warning" title="Återtaget"></i>;
-                                                            break;
-                                                        default: 
-                                                            statusIcon = <i className="bi bi-dash-circle text-danger opacity-75" title="Ej inlämnad"></i>;
-                                                    }
-                                                    if (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) {
-                                                        resultText = `${sub.assignedGrade} / ${cw.maxPoints}`;
-                                                    }
-                                                }
-
-                                                return (
-                                                    <tr key={cw.id} className="align-middle">
-                                                        <td className="ps-3 py-1 border-bottom" style={{ fontSize: '0.85rem' }}>{cw.title}</td>
-                                                        <td className="text-center py-1 border-bottom">
-                                                            {statusIcon}
-                                                        </td>
-                                                        <td className="text-end py-1 border-bottom pe-3 fw-bold" style={{ fontSize: '0.85rem' }}>
-                                                            {resultText}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                <StudentSummary 
+                    student={selectedStudentData}
+                    courseName={courseName}
+                    onClose={() => setSelectedStudent(null)}
+                    groupedWork={groupedWork}
+                    getSubmission={getSubmission}
+                />
             )}
 
             {/* Toolbar */}
@@ -367,6 +364,10 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
                                  <input className="form-check-input" type="checkbox" id="checkPending" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
                                  <label className="form-check-label small fw-bold text-danger" htmlFor="checkPending">Att rätta</label>
                              </div>
+                             <div className="form-check form-check-inline m-0">
+                                 <input className="form-check-input" type="checkbox" id="checkHeatmap" checked={showHeatmap} onChange={e => setShowHeatmap(e.target.checked)} />
+                                 <label className="form-check-label small fw-bold text-success" htmlFor="checkHeatmap">Heatmap</label>
+                             </div>
                         </div>
                         <div className="vr h-50 opacity-25"></div>
                         <select onChange={(e) => setSortType(e.target.value)} value={sortType} className="form-select form-select-sm border-0 fw-bold text-primary bg-transparent" style={{ width: '140px' }}>
@@ -377,181 +378,29 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
                              <option value="submission-desc">Sortera: Mest gjort</option>
                          </select>
                     </div>
-                    <button onClick={() => downloadCSV(courseName, groupedWork, details.students, details.submissions)} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
+                    <button onClick={() => handleGenerateCSV(courseName, groupedWork, details.students, details.submissions)} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
                         <i className="bi bi-file-earmark-spreadsheet fs-6"></i> Exportera Excel
                     </button>
                 </div>
             </div>
 
-            {/* Matrix Table */}
-            <div className="flex-grow-1 overflow-auto matrix-wrapper">
-                <table className="table table-sm table-hover mb-0 matrix-table">
-                    <thead>
-                        <tr>
-                            <th className="sticky-corner-1 align-middle ps-3">ELEV</th>
-                            {groupedWork.map(group => {
-                                const isExpanded = expandedTopics[group.id];
-                                return (
-                                <th key={group.id} colSpan={isExpanded ? group.assignments.length + 1 : 1} onClick={() => setExpandedTopics(prev => ({ ...prev, [group.id]: !prev[group.id] }))} className="sticky-header-topic text-center px-1" style={{ cursor: 'pointer', maxWidth: isExpanded ? 'none' : '90px' }}>
-                                    <div className="d-flex align-items-center justify-content-center gap-1 h-100">
-                                         <i className={`bi bi-${isExpanded ? 'dash-square' : 'plus-square'} small opacity-50 flex-shrink-0`}></i>
-                                         <span className="line-clamp-2">{group.name}</span>
-                                    </div>
-                                </th>
-                            );
-                            })}
-                        </tr>
-                        <tr>
-                            <th className="sticky-corner-2 ps-3 text-start"><small className="text-muted fw-normal">{sortedStudents.length} st</small></th>
-                            {groupedWork.map(group => {
-                                const isExpanded = expandedTopics[group.id];
-                                return (
-                                <React.Fragment key={group.id}>
-                                    {isExpanded && group.assignments.map((cw, idx) => (
-                                        <th key={cw.id} className="sticky-header-assign">
-                                            <div className="line-clamp-4" style={{ fontSize: '0.6rem' }}>
-                                                <a href={cw.alternateLink} target="_blank" rel="noreferrer" className="text-decoration-none text-muted">{cw.title}</a>
-                                            </div>
-                                        </th>
-                                    ))}
-                                    <th className="sticky-header-assign sticky-header-summary text-center" style={{ backgroundColor: '#f8f9fa' }}>
-                                        <div className="d-flex align-items-center justify-content-center h-100">
-                                            <i className="bi bi-bag-check text-muted" style={{ fontSize: '0.9rem' }}></i>
-                                        </div>
-                                    </th>
-                                </React.Fragment>
-                            );
-                            })}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sortedStudents.map((student, index) => {
-                            const atRisk = isStudentAtRisk(student.userId, details.submissions, groupedWork);
-                            return (
-                            <tr key={student.userId} className={selectedStudent === student.userId ? 'selected-row' : ''}>
-                                <td className="sticky-col-student align-middle ps-3" onClick={() => setSelectedStudent(selectedStudent === student.userId ? null : student.userId)} style={{ cursor: 'pointer', fontSize: '0.8rem' }}>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <span className="text-muted small" style={{ minWidth: '20px' }}>{index + 1}.</span>
-                                        {student.profile.photoUrl ? (
-                                            <img src={student.profile.photoUrl} alt="" className="rounded-circle border" style={{ width: '24px', height: '24px' }} />
-                                        ) : (
-                                            <div className="bg-light rounded-circle border d-flex align-items-center justify-content-center text-muted" style={{ width: '24px', height: '24px' }}>
-                                                <i className="bi bi-person" style={{ fontSize: '0.8rem' }}></i>
-                                            </div>
-                                        )}
-                                        <span className="fw-bold text-dark text-truncate me-1" style={{ maxWidth: '150px' }}>{student.profile.name.fullName}</span>
-                                        {atRisk && <i className="bi bi-exclamation-triangle-fill text-danger" title="Varning"></i>}
-                                    </div>
-                                </td>
-                                {groupedWork.map(group => {
-                                    const isExpanded = expandedTopics[group.id];
-                                    let maxGrade = -1, maxGradePercent = -1, hasGrade = false;
-                                    const cells = group.assignments.map((cw, idx) => {
-                                        const sub = getSubmission(student.userId, cw.id);
-                                        if (sub && typeof sub.assignedGrade === 'number') {
-                                            hasGrade = true;
-                                            if (cw.maxPoints > 0) {
-                                                const pct = (sub.assignedGrade / cw.maxPoints) * 100;
-                                                if (pct > maxGradePercent) maxGradePercent = pct;
-                                            }
-                                            if (sub.assignedGrade > maxGrade) maxGrade = sub.assignedGrade;
-                                        }
-                                        if (!isExpanded) return null;
-                                        return (
-                                            <td key={cw.id} className="grade-cell text-center p-0" style={{ backgroundColor: getCellBackgroundColor(sub, cw), fontSize: '0.75rem' }}>
-                                                <a href={sub?.alternateLink || cw.alternateLink} target="_blank" rel="noreferrer" className="grade-link w-100 h-100 d-flex align-items-center justify-content-center text-decoration-none text-reset">{getSubmissionText(sub, cw)}</a>
-                                            </td>
-                                        );
-                                    });
-
-                                    let summaryContent = '-', summaryStyle = { fontSize: '0.8rem', backgroundColor: '#f8f9fa' };
-                                    if (showGraded) {
-                                        summaryStyle.backgroundColor = getGradeColorByPercent(maxGradePercent);
-                                        summaryStyle.color = maxGradePercent >= 90 ? 'white' : 'inherit';
-                                        summaryContent = hasGrade ? maxGrade : '-';
-                                    } else {
-                                        let turnInCount = 0;
-                                        group.assignments.forEach(cw => {
-                                            const sub = getSubmission(student.userId, cw.id);
-                                            if (sub && (sub.state === 'TURNED_IN' || sub.state === 'RETURNED' || (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null))) turnInCount++;
-                                        });
-                                        const submissionPct = (maxSubmissionsPerGroup[group.id] || 0) > 0 ? (turnInCount / maxSubmissionsPerGroup[group.id]) * 100 : 0;
-                                        summaryStyle.backgroundColor = getGradeColorByPercent(submissionPct);
-                                        summaryStyle.color = submissionPct >= 90 ? 'white' : 'inherit';
-                                        summaryContent = turnInCount;
-                                    }
-
-                                    return (
-                                        <React.Fragment key={group.id}>
-                                            {cells}
-                                            <td className="text-center fw-bold align-middle sticky-header-summary" style={summaryStyle}>{summaryContent}</td>
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tr>
-                            );
-                        })}
-                    </tbody>
-                    <tfoot>
-                        <tr className="footer-row">
-                            <td className="sticky-col-student text-end pe-3">Snitt</td>
-                            {groupedWork.map(group => {
-                                const isExpanded = expandedTopics[group.id];
-                                return (
-                                    <React.Fragment key={group.id}>
-                                        {isExpanded && group.assignments.map((cw, idx) => (
-                                            <td key={cw.id} className="text-center" style={{ fontSize: '0.7rem' }}>
-                                                {(() => {
-                                                    let sum = 0, count = 0;
-                                                    details.students.forEach(std => {
-                                                        const sub = getSubmission(std.userId, cw.id);
-                                                        if (sub && typeof sub.assignedGrade === 'number') {
-                                                            sum += sub.assignedGrade;
-                                                            count++;
-                                                        }
-                                                    });
-                                                    return count > 0 ? (sum / count).toFixed(1) : '-';
-                                                })()}
-                                            </td>
-                                        ))}
-                                         <td className="text-center fw-bold sticky-header-summary" style={{ fontSize: '0.75rem', backgroundColor: '#f8f9fa' }}>
-                                                {(() => {
-                                                    if (showGraded) {
-                                                        let sum = 0, count = 0;
-                                                        details.students.forEach(std => {
-                                                            let max = -1, hasGrade = false;
-                                                            group.assignments.forEach(a => {
-                                                                const sub = getSubmission(std.userId, a.id);
-                                                                if (sub && typeof sub.assignedGrade === 'number') {
-                                                                    hasGrade = true;
-                                                                    if (sub.assignedGrade > max) max = sub.assignedGrade;
-                                                                }
-                                                            });
-                                                            if (hasGrade) { sum += max; count++; }
-                                                        });
-                                                        return count > 0 ? (sum / count).toFixed(1) : '-';
-                                                    } else {
-                                                        let totalCount = 0, studentCount = 0;
-                                                        details.students.forEach(std => {
-                                                            let count = 0;
-                                                            group.assignments.forEach(a => {
-                                                                const sub = getSubmission(std.userId, a.id);
-                                                                if (sub && (sub.state === 'TURNED_IN' || sub.state === 'RETURNED' || (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null))) count++;
-                                                            });
-                                                            totalCount += count;
-                                                            studentCount++;
-                                                        });
-                                                        return studentCount > 0 ? (totalCount / studentCount).toFixed(1) : '-';
-                                                    }
-                                                })()}
-                                            </td>
-                                    </React.Fragment>
-                                )
-                            })}
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+            <MatrixTable 
+                groupedWork={groupedWork}
+                sortedStudents={sortedStudents}
+                expandedTopics={expandedTopics}
+                setExpandedTopics={setExpandedTopics}
+                selectedStudent={selectedStudent}
+                setSelectedStudent={setSelectedStudent}
+                details={details}
+                getSubmission={getSubmission}
+                getCellBackgroundColor={getCellBackgroundColor}
+                getSubmissionText={getSubmissionText}
+                getGradeColorByPercent={getGradeColorByPercent}
+                isStudentAtRisk={isStudentAtRisk}
+                showGraded={showGraded}
+                showHeatmap={showHeatmap}
+                maxSubmissionsPerGroup={maxSubmissionsPerGroup}
+            />
         </div>
     );
 };

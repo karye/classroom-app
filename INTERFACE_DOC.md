@@ -1,62 +1,49 @@
 # Dokumentation av Användargränssnitt & Funktionalitet
 
-Detta dokument beskriver designen, interaktiviteten och logiken i "Classroom Matrix Dashboard". Applikationen är utformad för att ge lärare en snabb överblick och ett effektivt arbetsflöde genom en datatät matrisvy och en dedikerad rättningsmodul.
+Detta dokument beskriver design och interaktion i "Classroom Matrix Dashboard".
 
-## 1. Gränssnittsöversikt (Layout)
+## 1. Gränssnittsöversikt
 
-Applikationen använder en **tvåradig toppmeny** för att separera systemnavigation från vyer-specifika verktyg:
-
-1.  **Huvudrad (Header):**
-    *   **Vy-väljare:** Tre ikoner (Matrix, Stream, Todo) för att växla mellan appens huvudmoduler. Appen kommer ihåg din senast valda vy.
-    *   **Kursväljare:** Dropdown för att välja aktiv kurs. Vid uppstart laddas senast valda kurs automatiskt.
-    *   **Systemkontroller:** Knappar för att öppna kursen i Classroom, en manuell **Uppdatera**-knapp (med animerad rotationsikon), **Inställningar** (kugghjul) och **Logga ut**.
-2.  **Verktygsrad (Toolbar):** En kontextberoende rad som visar kontroller specifika för den vy du befinner dig i (t.ex. sökfält, filter och exportknappar).
+Applikationen har en konsekvent layout med två huvuddelar:
+1.  **Toppmeny (Global):**
+    *   Navigering mellan vyer (Matrix, Stream, Todo).
+    *   Kursväljare.
+    *   **Smart Uppdatering:** En uppdateringsknapp som anpassar sig. Har du valt en kurs uppdateras bara den. Har du valt "Alla" uppdateras hela systemet.
+2.  **Verktygsrad (Kontextuell):**
+    *   En enhetlig rad under menyn som innehåller vy-specifika filter, sökfält och exportknappar.
 
 ---
 
 ## 2. Huvudmoduler
 
-### A. Matrisen (The Matrix)
-En fullskärmstabell (Heatmap) som visualiserar elevresultat.
-*   **Rader:** Elever, numrerade och sorterbara. Visar nu även **profilbilder** och fetstilta namn för bättre igenkänning.
-*   **Kolumner:** Uppgifter grupperade efter Classroom-ämnen. Varje ämne har en fix bredd (90px) och titlar på upp till 4 rader med ellipsis.
-*   **Elevsammanställning:** Klicka på en elev för att öppna en **detaljerad översikt** över alla resultat, optimerad för utskrift med tydliga ikoner.
-*   **Verktyg:** Sökfält, filter för Prov/Uppgifter/"Att rätta", och sortering på namn, betyg eller flit.
-*   **Export:** Direktknapp till Excel (CSV).
+### A. Matrisen (Matrix View)
+En översikt av elevresultat.
+*   **Visuellt språk:** 
+    *   **Ljusblått:** Uppgifter du behöver rätta.
+    *   **Färgskala:** Betygsatta prov.
+    *   **Vitt/Grönt:** Färdiga uppgifter utan betyg.
+*   **Export:** Klicka "Exportera Excel" för att öppna ett förhandsgranskningsfönster där du kan kopiera datan eller ladda ner en Excel-anpassad CSV-fil.
 
-### B. Stream & Loggbok
+### B. Stream & Loggbok (Stream View)
 Ett flöde för planering och historik.
-*   **Flöde:** Kursens meddelanden grupperade per månad.
-*   **Kalender:** En månadskalender för snabbnavigering. Blå prickar indikerar dagar med inlägg.
-*   **Privat Loggbok:** Krypterade anteckningar med Markdown-stöd kopplade till varje inlägg.
-*   **Export:** Knapp i verktygsraden för att generera en Markdown-fil (.md) av hela loggboken.
+*   **Kalender:** En kompakt kalender i vänsterspalten (fast bredd) för att filtrera inlägg per datum.
+*   **Loggbok:** Klicka på "Skriv" vid ett inlägg för att öppna en Markdown-editor för privata anteckningar.
+*   **Export:** Exportera hela loggboken till en Markdown-fil via förhandsgranskningsfönstret.
 
 ### C. Todo (Att Göra)
-En optimerad vy för "Inbox Zero"-rättning.
-*   **Vänstermeny:** Navigeringslista över uppgifter med väntande inlämningar. Visar endast uppgifter som inte döljs av globala filter.
-*   **Elevlista:** Uppdelad i tre tydliga kategorier: **Att rätta**, **Klara** och **Ej inlämnade**.
-*   **Statistik:** Visar i realtid hur många elever som väntar på rättning av det totala antalet i klassen.
+Din inkorg för rättning.
+*   **Sidomeny:** Lista över alla uppgifter, grupperade per ämne. 
+    *   Visar (0) om allt är klart.
+*   **Huvudvy:** När du väljer en uppgift visas tre tydliga tabeller:
+    1.  **Att rätta:** (Röd/Blå markering).
+    2.  **Klara:** (Grön markering).
+    3.  **Ej inlämnade:** (Grå).
+*   **Filter:** Checkboxen "Dölj utan inlämningar" i verktygsraden filtrerar bort uppgifter där ingen har lämnat in något nytt, så du kan fokusera på det som är relevant.
 
 ---
 
-## 3. Globala Inställningar
-Genom kugghjulet i sidhuvudet kan användaren definiera filter för att städa upp i vyerna:
-*   **Dölj uppgifter:** Exkludera inlägg vars titel innehåller specifika ord (t.ex. "Lunch").
-*   **Dölj ämnen:** Exkludera hela ämnesblock från både matrisen och todo-listan.
-*   **Beständighet:** Dessa inställningar sparas i serverns databas och följer med användaren oavsett enhet.
+## 3. Modaler & Förhandsgranskning
 
----
-
-## 4. Prestanda & Cachning
-
-Appen använder **IndexedDB** för lokal cachning av tung data:
-*   Inga begränsningar i datamängd (till skillnad från localStorage).
-*   Data laddas asynkront vilket ger ett mjukare gränssnitt.
-*   Den roterande pilen i mitten av skärmen indikerar när bakgrundssynkronisering pågår.
-
----
-
-## 4. Säkerhet
-
-*   **Autentisering:** Sker via Google OAuth2.
-*   **Kryptering:** Alla privata loggboksanteckningar krypteras på servern med **AES-256-CBC** innan de sparas i databasen. Krypteringsnyckeln är unik per användare.
+Applikationen använder enhetliga modalfönster för viktiga interaktioner:
+*   **Elevöversikt:** Klicka på en elev i Matrisen för att se en detaljerad, utskriftsvänlig sammanställning.
+*   **Export:** Alla exporter visas först i ett fönster. Här ser du exakt vad som sparas. Du kan välja att **Kopiera text** till urklipp (t.ex. för att klistra in i ett mail) eller **Ladda ner fil**.

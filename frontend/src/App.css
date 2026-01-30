@@ -1,8 +1,36 @@
 /* --- Reset & Layout --- */
 :root {
-  --matrix-bg-header: #f8f9fa; /* Bootstrap gray-100 */
-  --matrix-border: #dee2e6; /* Bootstrap gray-300 */
+  /* --- Colors --- */
+  --primary-color: #0d6efd;
+  --primary-bg-light: #e7f1ff;
+  --success-color: #198754; /* Bootstrap success */
+  --danger-color: #dc3545;  /* Bootstrap danger */
+  --warning-color: #ffc107; /* Bootstrap warning */
+  --text-muted: #6c757d;
+  --bg-light: #f8f9fa;
+  --border-color: #dee2e6;
+  
+  /* --- Matrix Specific Colors --- */
+  --matrix-bg-header: var(--bg-light);
+  --matrix-border: var(--border-color);
   --matrix-text: #212529;
+  
+  /* --- Grade Colors (Matrix) --- */
+  --grade-high: #52c41a;
+  --grade-good: #95de64;
+  --grade-pass: #d9f7be;
+  --grade-fail: #ffccc7;
+  --grade-turnin: #f6ffed;
+
+  /* --- Dimensions --- */
+  --sidebar-width: 380px;
+  --header-height-top: 60px;
+  --header-height-toolbar: 45px;
+  
+  /* --- Typography --- */
+  --font-size-xs: 0.65rem;
+  --font-size-sm: 0.75rem;
+  --font-size-base: 0.9rem;
 }
 
 body {
@@ -175,7 +203,7 @@ body {
   transform: scale(1.05);
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
   z-index: 10;
-  border: 1px solid #0d6efd; /* Bootstrap primary */
+  border: 1px solid var(--primary-color);
 }
 
 .grade-link {
@@ -198,16 +226,16 @@ body {
 /* Selected Row Styling */
 .selected-row td {
   /* No background change to preserve grade colors */
-  border-top: 2px solid #0d6efd !important;
-  border-bottom: 2px solid #0d6efd !important;
+  border-top: 2px solid var(--primary-color) !important;
+  border-bottom: 2px solid var(--primary-color) !important;
 }
 
 .selected-row .sticky-col-student {
-  background-color: #e7f1ff !important; /* Keep name highlighted */
-  border-left: 5px solid #0d6efd !important;
-  border-top: 2px solid #0d6efd !important;
-  border-bottom: 2px solid #0d6efd !important;
-  color: #0d6efd;
+  background-color: var(--primary-bg-light) !important; /* Keep name highlighted */
+  border-left: 5px solid var(--primary-color) !important;
+  border-top: 2px solid var(--primary-color) !important;
+  border-bottom: 2px solid var(--primary-color) !important;
+  color: var(--primary-color);
   z-index: 25; /* Ensure name sits above scrolled content if needed */
 }
 
@@ -217,8 +245,8 @@ body {
   --rdp-day_button-width: 100%; /* Force responsive width */
   --rdp-day_button-height: 100%; 
   --rdp-caption-font-size: 0.9rem;
-  --rdp-accent-color: #0d6efd;
-  --rdp-background-color: #e7f1ff;
+  --rdp-accent-color: var(--primary-color);
+  --rdp-background-color: var(--primary-bg-light);
   margin: 0;
   font-size: 0.75rem;
   width: 100%;
@@ -259,7 +287,7 @@ body {
   transform: translateX(-50%);
   width: 4px;
   height: 4px;
-  background-color: #0d6efd;
+  background-color: var(--primary-color);
   border-radius: 50%;
 }
 

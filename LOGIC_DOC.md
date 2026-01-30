@@ -1,79 +1,73 @@
 # Teknisk Logik & Algoritmer
 
-Detta dokument beskriver de bakomliggande beräkningarna, säkerhetslösningarna och systemarkitekturen i "Classroom Matrix Dashboard".
+Detta dokument beskriver beräkningar, säkerhetslösningar, API-strategier och systemarkitekturen.
 
 ---
 
-## 1. Betygslogik & Visualisering (Matrix)
+## 1. Uppgiftslogik & Visualisering
 
-Matrisen använder en kombination av absoluta och relativa värden för att ge läraren en snabb överblick.
+Applikationen använder en strikt logik för att visualisera uppgifter baserat på två faktorer: **Uppgiftstyp** (har den poäng?) och **Tillstånd** (status). Målet är att skilja på *prestation* (betyg) och *process* (att göra).
 
-### Procentberäkning
-För uppgifter med poäng (`maxPoints > 0`) beräknas resultatet som:
-`procent = (assignedGrade / maxPoints) * 100`
+### A. Uppgiftstyper
+Systemet skiljer automatiskt på två typer av uppgifter baserat på data från Google Classroom:
+1.  **Bedömda uppgifter (Prov/Inlämningar):** Har `maxPoints > 0`. Här är resultatet (siffran) det centrala.
+2.  **Kvittensuppgifter (Läxor/Info):** Har inga poäng (`maxPoints` är 0 eller null). Här är statusen (Gjort/Inte gjort) det centrala.
 
-### Färgkodning
-Färgerna i matrisen och på elevkorten styrs av följande tröskelvärden:
-*   🟢 **90% - 100%:** Mörkgrön (`#52c41a`)
-*   🌳 **70% - 89%:** Gräsgrön (`#95de64`)
-*   🟡 **50% - 69%:** Ljusgrön/Gul (`#d9f7be`)
-*   🔴 **0% - 49%:** Rödaktig (`#ffccc7`)
+### B. Tillstånd & Visuellt Språk (Matrisen)
 
-### Sammanfattningskolumn (MAX)
-För varje ämne beräknas en sammanfattning per elev:
-*   **Vid betygsatt vy:** Visar elevens **högsta uppnådda betyg** (inte snitt) inom ämnet.
-*   **Vid inlämningsvy:** Visar det totala antalet godkända inlämningar (`TURNED_IN`, `RETURNED` eller betygsatta). Färgkodningen här är **relativ**; den baseras på hur den bästa eleven i klassen har presterat i just det ämnet.
+Cellerna i matrisen ändrar utseende för att signalera vad som krävs av läraren.
 
-### Risk-analys (⚠️)
-Varningsikonen visas bredvid en elevs namn om:
-*   Eleven har ett registrerat betyg som understiger **50%** i minst ett ämne (efter att ha tagit det bästa resultatet i ämnet).
-*   Ämnen där eleven helt saknar resultat ignoreras i risk-analysen.
+| Tillstånd (Google API) | Innebörd | Visuellt uttryck (Med Poäng) | Visuellt uttryck (Utan Poäng) |
+| :--- | :--- | :--- | :--- |
+| **Ej inlämnad**<br>`(NEW / CREATED)` | Eleven har inte gjort uppgiften. | **Vit bakgrund**<br>Grå dash `-` | **Vit bakgrund**<br>Grå dash `-` |
+| **Att Rätta / Agera**<br>`(TURNED_IN)` | Eleven har lämnat in. Bollen ligger hos dig. | **Ljusblå bakgrund** (`#e7f1ff`)<br>Grön inlämningsikon ✅ | **Ljusblå bakgrund** (`#e7f1ff`)<br>Blå cirkel-ikon 🔵 |
+| **Klar / Bedömd**<br>`(RETURNED)` | Du har rättat/återlämnat. | **Heatmap-färg** (se nedan)<br>Siffra (Betyget) | **Vit bakgrund**<br>Grön bock ✅ |
 
----
+*Nyckelprincip:* Den **ljusblå** färgen är en "Action-signal". Allt som är blått i matrisen är saker du behöver titta på eller rätta.
 
-## 2. Säkerhet & Kryptering
+### C. Heatmap-logik (Endast poänguppgifter)
+När en uppgift med poäng är rättad (`RETURNED` eller har `assignedGrade`), färgas cellen baserat på prestationsnivån (procent av maxpoäng):
 
-Privata anteckningar i loggboken skyddas med industristandard kryptering på servern.
+*   🟢 **Mörkgrön (High):** 90% - 100% (Utmärkt resultat)
+*   🌳 **Gräsgrön (Good):** 70% - 89% (Bra resultat)
+*   🟡 **Ljusgrön/Gul (Pass):** 50% - 69% (Godkänt)
+*   🔴 **Röd (Fail):** 0% - 49% (Underkänt/Varning)
 
-### Algoritm
-Systemet använder **AES-256-CBC**.
-
-### Nyckelhantering
-Varje användare har en unik krypteringsnyckel som aldrig lagras i klartext:
-1.  En global `MASTER_KEY` hämtas från serverns miljövariabler.
-2.  En användarspecifik nyckel härleds via **scrypt** genom att kombinera `MASTER_KEY` med användarens unika **Google ID**.
-3.  En slumpmässig Initialization Vector (IV) genereras för varje unik anteckning för att förhindra mönsterigenkänning.
-
-### Lagring
-Datan sparas i formatet `iv:encrypted_text` i SQLite-databasen. Om `MASTER_KEY` ändras blir gamla anteckningar oläsliga.
+Denna heatmap gör det möjligt att snabbt scanna en klass och se mönster (t.ex. om många lyser rött på ett specifikt moment).
 
 ---
 
-## 3. Cachningsstrategi (IndexedDB)
+## 2. API-hantering & Rate Limiting
 
-Appen använder en asynkron cachningsmodell för att maximera prestanda.
+För att hantera Googles strikta API-kvoter ("Quota Exceeded") använder backend en skräddarsydd kö-hantering.
 
-### Flöde vid sidladdning
-1.  **Läs:** Appen hämtar omedelbart senast kända data från `IndexedDB` (om den finns).
-2.  **Visa:** Gränssnittet renderas direkt med den cachade datan.
-3.  **Validera:** Användaren ser en tidsstämpel för datans ålder.
-4.  **Uppdatera:** Vid manuell refresh ersätts datan i `IndexedDB` och vyn uppdateras asynkront.
-
-### Datastruktur
-Cachen är uppdelad i tre "Object Stores" i databasen `ClassroomMatrixDB`:
-*   `course_cache_ID`: Innehåller elever, coursework och alla inlämningar för en kurs.
-*   `stream_cache_ID`: Innehåller alla announcements för en kurs.
-*   `todo_cache_data`: Innehåller den globala listan över alla väntande inlämningar.
+### Concurrency Control
+Istället för att bomba API:et med hundratals parallella anrop (vilket händer om man hämtar alla inlämningar för 20 kurser samtidigt), använder servern en strypningsmekanism:
+*   **Global Spärr:** Max 3 kurser bearbetas parallellt vid en "Uppdatera alla"-begäran.
+*   **Detaljerad Spärr:** Inom varje kurs hämtas max 10 uppgifter parallellt.
+*   **Delay:** En artificiell fördröjning på 50ms läggs in mellan varje anrop för att jämna ut belastningen över tid.
 
 ---
 
-## 4. Todo-kategorisering
+## 3. Export-logik
 
-I Todo-vyn delas eleverna upp baserat på inlämningens `state` från Google API:
+### Excel-kompatibilitet (CSV)
+Exporten är optimerad för att öppnas direkt i Excel (särskilt nordiska versioner):
+1.  **BOM (`\uFEFF`):** Filen inleds med en Byte Order Mark för att tvinga Excel att läsa UTF-8 (åäö) korrekt.
+2.  **Separator:** Semikolon (`;`) används istället för komma.
+3.  **Citattecken:** Alla fält kapslas in i citattecken för robusthet.
+4.  **Fallback-värden:** Om en elev saknar betyg men har lämnat in, exporteras texten "Inlämnad" eller "Klar" i cellen istället för att lämna den tom.
 
-1.  **Att rätta:** `state === 'TURNED_IN'`. (Högsta prioritet, sorteras på tid).
-2.  **Klara:** `state === 'RETURNED'` eller om ett betyg (`assignedGrade`) har registrerats.
-3.  **Ej inlämnade:** `state === 'NEW'` eller `state === 'CREATED'`.
+---
 
-### Globala Filter
-Innan rendering körs en filter-logik som kontrollerar både uppgiftens titel och dess ämnesnamn mot användarens sparade sökord. Om en matchning hittas (case-insensitive) exkluderas hela objektet från databehandlingen.
+## 4. Säkerhet & Kryptering
+
+Privata anteckningar i loggboken skyddas med **AES-256-CBC**.
+*   **Nyckel:** Unik nyckel per användare, härledd via `scrypt` från en global `MASTER_KEY` och användarens Google ID.
+*   **Lagring:** Data sparas som `iv:encrypted_text` i SQLite.
+
+---
+
+## 5. Cachningsstrategi (IndexedDB)
+
+Frontend använder **IndexedDB** för att lagra hela datastrukturen lokalt. Detta möjliggör blixtsnabb sidladdning och navigering mellan kurser utan att behöva vänta på nya API-anrop.
