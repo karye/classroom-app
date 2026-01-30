@@ -2,6 +2,41 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
+## [2026-01-30] - "Inbox Zero & UI-ombyggnad"
+
+En omfattande uppdatering med fokus på effektivitet i rättningsarbetet och ett mer strukturerat användargränssnitt.
+
+### 🚀 Nytt & Tillagt
+*   **Total ombyggnad av Todo-vyn:**
+    *   **Tvådelad layout:** Navigeringslista till vänster, detaljerad elevlista till höger.
+    *   **Ämnesgruppering:** Uppgifter grupperas nu efter ämne (Topics) även i Todo-listan.
+    *   **Tangentbordsnavigering:** Fullt stöd för `Pil Upp`/`Ned` för att bläddra mellan uppgifter.
+    *   **Smart Sortering:** Nya knappar för att sortera på datum (stigande/fallande) eller alfabetiskt.
+    *   **Flerdetaljer:** Inkluderar tidsstämpel för inlämning och varningsbadge för sena inlämningar.
+*   **Förbättrad Stream-vy:**
+    *   **Månadsgruppering:** Automatiska avsnitt per månad i flödet.
+    *   **Responsiv Kalender:** Kalendern skalar nu perfekt i sidomenyn oavsett fönsterstorlek.
+    *   **Längre förhandsvisning:** Tre rader text visas nu i kollapsade inlägg.
+*   **Optimerad Cachning:**
+    *   **Manuellt fokus:** Appen laddar nu omedelbart från `localStorage` i alla vyer.
+    *   **Full kontroll:** Automatisk bakgrundsuppdatering borttagen för att spara API-kvot; användaren väljer själv när ny data ska hämtas via "Uppdatera"-knappen.
+    *   **Tidsstämplar:** Uppdateringsknappen visar exakt när datan senast hämtades (vid hovring).
+
+### 💅 Design & UX
+*   **Tvåradigt Sidhuvud:** 
+    *   Övre raden: Enhetlig navigering (Vy-val, Kurs, Uppdatera, Logga ut).
+    *   Undre raden: Vy-specifika kontroller (Sök, Filter, Sortering, Export).
+*   **Minimalistiskt UI:** Tagit bort textetiketter på knappar till förmån för ikoner och tooltips.
+*   **Ultrakompakt elevlista:** Minskad radhöjd och mindre profilbilder för maximal datatäthet.
+*   **Vyminne:** Appen kommer ihåg vilken vy du senast besökte.
+
+### 🔧 Backend & Fixar
+*   **API-utökning:** `/api/todos` aggregerar nu även `topics`, `studentCount` och `late`-status.
+*   **Docker-fix:** Säkerställt att backenden har en giltig `package.json` för isolerade byggen.
+*   **Stabilitet:** Fixat ReferenceErrors och JSX-syntaxfel efter omstrukturering.
+
+---
+
 ## [2026-01-29] - "Matris Visualisering & UI-fixar"
 
 Fokus låg på att göra matrisvyn mer visuell och logisk i sin hantering av uppgiftsstatusar.

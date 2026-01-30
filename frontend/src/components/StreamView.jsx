@@ -88,31 +88,68 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
     // Days with posts for calendar highlighting
     const daysWithPosts = announcements.map(post => parseISO(post.updateTime));
 
+    let lastMonth = null;
+
     return (
         <div className="container-fluid h-100">
+            <style>{`
+                .rdp { 
+                    --rdp-cell-size: 100%; 
+                    margin: 0; 
+                    width: 100%;
+                }
+                .rdp-table {
+                    max-width: 100%;
+                    width: 100%;
+                }
+                .rdp-day {
+                    width: 100%;
+                    aspect-ratio: 1;
+                    max-width: 40px;
+                    max-height: 40px;
+                    margin: auto;
+                }
+                .rdp-day_has_post::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 3px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 4px;
+                    height: 4px;
+                    background-color: var(--bs-primary);
+                    border-radius: 50%;
+                }
+                @media (max-width: 768px) {
+                    .rdp { --rdp-cell-size: 30px; }
+                }
+            `}</style>
             <div className="row h-100">
                 {/* Calendar Sidebar */}
                 <div className="col-md-3 col-lg-3 border-end bg-light p-3 h-100 d-none d-md-block overflow-auto">
-                    <div className="bg-white rounded shadow-sm p-3 mb-3 d-flex justify-content-center">
-                        <DayPicker
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={setSelectedDate}
-                            modifiers={{ has_post: daysWithPosts }}
-                            modifiersClassNames={{ has_post: 'rdp-day_has_post' }}
-                            locale={sv}
-                            weekStartsOn={1}
-                            showOutsideDays
-                            showWeekNumber
-                        />
+                    <div className="bg-white rounded shadow-sm p-2 mb-3 d-flex justify-content-center overflow-hidden">
+                        <div style={{ maxWidth: '100%' }}>
+                            <DayPicker
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={setSelectedDate}
+                                modifiers={{ has_post: daysWithPosts }}
+                                modifiersClassNames={{ has_post: 'rdp-day_has_post position-relative' }}
+                                locale={sv}
+                                weekStartsOn={1}
+                                showOutsideDays
+                                showWeekNumber
+                            />
+                        </div>
                     </div>
                     {selectedDate && (
-                        <button className="btn btn-outline-secondary w-100 btn-sm" onClick={() => setSelectedDate(undefined)} title="Rensa datumfilter">
+                        <button className="btn btn-outline-secondary w-100 btn-sm mb-3" onClick={() => setSelectedDate(undefined)} title="Rensa datumfilter">
                             <i className="bi bi-x-circle me-2"></i>Visa alla inlägg
                         </button>
                     )}
-                    <div className="mt-4 text-muted small">
-                        <p><i className="bi bi-info-circle me-1"></i>Datum med prick har inlägg.</p>
+                    <div className="text-muted small px-2">
+                        <p className="mb-1"><i className="bi bi-info-circle me-1"></i>Blå prick = inlägg finns.</p>
+                        <p className="mb-0"><i className="bi bi-calendar-event me-1"></i>Veckonummer visas till vänster.</p>
                     </div>
                 </div>
 
@@ -132,8 +169,21 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
                             const hasMaterials = post.materials && post.materials.length > 0;
                             const postDate = parseISO(post.updateTime);
                             
+                            // Month grouping logic
+                            const currentMonth = format(postDate, "MMMM yyyy", { locale: sv }).toUpperCase();
+                            const showMonthHeader = currentMonth !== lastMonth;
+                            lastMonth = currentMonth;
+
                             return (
-                            <div key={post.id} className="card mb-3 shadow-sm border-0">
+                            <React.Fragment key={post.id}>
+                                {showMonthHeader && !selectedDate && (
+                                    <div className="d-flex align-items-center my-4 opacity-75">
+                                        <div className="flex-grow-1 border-bottom"></div>
+                                        <span className="mx-3 fw-bold text-primary small" style={{ letterSpacing: '1px' }}>{currentMonth}</span>
+                                        <div className="flex-grow-1 border-bottom"></div>
+                                    </div>
+                                )}
+                                <div className="card mb-3 shadow-sm border-0">
                                 <div className={`card-header bg-white border-bottom-0 pt-3 px-4 d-flex justify-content-between align-items-start ${!isExpanded ? 'pb-2' : ''}`} style={{cursor: 'pointer'}} onClick={() => togglePost(post.id)} title={isExpanded ? "Klicka för att minimera" : "Klicka för att läsa mer"}>
                                     <div className="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden">
                                         <div className={`bg-light text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${!isExpanded ? 'border' : ''}`} style={{width: '32px', height: '32px'}}>
@@ -149,7 +199,15 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
                                                 {hasMaterials && <i className="bi bi-paperclip text-secondary opacity-50" title="Har bifogat material"></i>}
                                             </div>
                                             {!isExpanded && (
-                                                <div className="text-truncate text-muted small mt-1">{post.text.split('\n')[0]}</div>
+                                                <div className="text-muted small mt-1" style={{ 
+                                                    display: '-webkit-box', 
+                                                    WebkitLineClamp: '3', 
+                                                    WebkitBoxOrient: 'vertical', 
+                                                    overflow: 'hidden',
+                                                    lineHeight: '1.3'
+                                                }}>
+                                                    {post.text}
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -230,6 +288,7 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
                                 </div>
                                 )}
                             </div>
+                            </React.Fragment>
                             );
                         })
                         )}

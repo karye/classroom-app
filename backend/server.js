@@ -338,28 +338,24 @@ app.get('/api/todos', checkAuth, async (req, res) => {
         const todosPromises = allCourses.map(async (course) => {
             try {
                 // Parallelize sub-requests for this course
-                const [studentsRes, courseWorkRes, submissionsRes] = await Promise.all([
+                const [studentsRes, courseWorkRes, topicsRes] = await Promise.all([
                     // A. Get Students (to map IDs to names)
                     classroom.courses.students.list({ courseId: course.id }).catch(e => ({ data: { students: [] } })),
                     // B. Get CourseWork (to get titles)
                     classroom.courses.courseWork.list({ courseId: course.id }).catch(e => ({ data: { courseWork: [] } })),
-                    // C. Get ALL submissions that are TURNED_IN
-                    // Using courseWorkId: '-' is a special wildcard supported by some APIs, but Classroom is strict.
-                    // However, iterating ALL coursework is too heavy.
-                    // Let's try the strict way: iterate coursework but ONLY if we have coursework.
-                    // Actually, let's wait for step B to finish.
-                    Promise.resolve(null) 
+                    // C. Get Topics
+                    classroom.courses.topics.list({ courseId: course.id }).catch(e => ({ data: { topic: [] } }))
                 ]);
 
                 const students = studentsRes.data.students || [];
                 const courseWork = courseWorkRes.data.courseWork || [];
+                const topics = topicsRes.data.topic || [];
 
                 if (courseWork.length === 0) return null;
+                
+                const topicMap = new Map(topics.map(t => [t.topicId, t.name]));
 
-                // C (Revised). Fetch submissions for all coursework.
-                // To avoid 100+ requests per course, we only check coursework that might have submissions.
-                // But we don't know which ones.
-                // We will limit to the 50 most recent assignments to be safe on quota.
+                // D. Fetch submissions for all coursework.
                 const recentWork = courseWork.slice(0, 50);
 
                 const subPromises = recentWork.map(cw => 
@@ -393,11 +389,14 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                         workId: sub.courseWorkId,
                         workTitle: work.title,
                         workLink: work.alternateLink,
+                        topicId: work.topicId,
+                        topicName: topicMap.get(work.topicId) || 'Övrigt',
                         studentId: sub.userId,
                         studentName: student.name.fullName,
                         studentPhoto: student.photoUrl,
                         submissionLink: sub.alternateLink,
-                        updateTime: sub.updateTime
+                        updateTime: sub.updateTime,
+                        late: sub.late
                     };
                 }).filter(Boolean);
 
@@ -406,6 +405,7 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                 return {
                     courseId: course.id,
                     courseName: course.name,
+                    studentCount: students.length,
                     todos: todoItems
                 };
 

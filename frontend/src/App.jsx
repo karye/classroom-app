@@ -21,7 +21,7 @@ function App() {
   const [showGraded, setShowGraded] = useState(true)
   const [showUngraded, setShowUngraded] = useState(true)
   const [showPending, setShowPending] = useState(false)
-  const [currentView, setCurrentView] = useState('matrix'); // 'matrix' | 'stream'
+  const [currentView, setCurrentView] = useState(localStorage.getItem('lastSelectedView') || 'matrix'); // 'matrix' | 'stream' | 'todo'
   
   // Stream View State
   const [streamAnnouncements, setStreamAnnouncements] = useState([]);
@@ -34,14 +34,31 @@ function App() {
 
   axios.defaults.withCredentials = true;
 
+  // Persist current view
+  useEffect(() => {
+    localStorage.setItem('lastSelectedView', currentView);
+  }, [currentView]);
+
   useEffect(() => {
     checkLoginStatus();
   }, [])
 
-  // Fetch Stream Data when switching to Stream view or changing course while in Stream view
+  // Load Stream Data from cache when switching to Stream view or changing course
   useEffect(() => {
       if (currentView === 'stream' && selectedCourseId) {
-          fetchStreamData(selectedCourseId);
+          const cacheKey = `stream_cache_${selectedCourseId}`;
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+              try {
+                  const parsed = JSON.parse(cached);
+                  setStreamAnnouncements(parsed.data);
+              } catch (e) {
+                  console.warn("Stream cache parse failed", e);
+              }
+          } else {
+              // If no cache exists, fetch once to populate it
+              fetchStreamData(selectedCourseId);
+          }
       }
   }, [currentView, selectedCourseId]);
 
@@ -59,8 +76,23 @@ function App() {
     }
   }
 
-  const fetchStreamData = async (courseId) => {
+  const fetchStreamData = async (courseId, forceUpdate = false) => {
       if (!courseId) return; // Guard clause
+      const cacheKey = `stream_cache_${courseId}`;
+      
+      if (!forceUpdate) {
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+              try {
+                  const parsed = JSON.parse(cached);
+                  setStreamAnnouncements(parsed.data);
+                  // Optionally fetch notes too if we want full cache, but notes are usually fast from DB
+              } catch (e) {
+                  console.warn("Stream cache parse failed", e);
+              }
+          }
+      }
+
       setStreamLoading(true);
       setStreamError(null);
       try {
@@ -70,6 +102,11 @@ function App() {
           ]);
           setStreamAnnouncements(annRes.data);
           setStreamNotes(notesRes.data);
+          
+          localStorage.setItem(cacheKey, JSON.stringify({
+              timestamp: Date.now(),
+              data: annRes.data
+          }));
       } catch (err) {
           console.error("Failed to fetch stream data", err);
           setStreamError("Kunde inte hämta inlägg.");
@@ -548,17 +585,14 @@ function App() {
                    <header className="bg-light border-bottom px-4 py-2 d-flex justify-content-between align-items-center shadow-sm z-10" style={{ minHeight: '60px' }}>
                        <div className="d-flex align-items-center gap-3">
                            <div className="d-flex align-items-center gap-2">
-                                <button className={`btn btn-sm ${currentView === 'matrix' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center gap-2`} onClick={() => setCurrentView('matrix')} title="Matrisvy">
+                                <button className={`btn btn-sm ${currentView === 'matrix' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => setCurrentView('matrix')} title="Matrisvy">
                                     <i className="bi bi-grid-3x3-gap-fill fs-5"></i>
-                                    <span className="fw-bold d-none d-md-block">Matrix</span>
                                 </button>
-                                <button className={`btn btn-sm ${currentView === 'stream' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center gap-2`} onClick={() => setCurrentView('stream')} title="Kursflöde">
+                                <button className={`btn btn-sm ${currentView === 'stream' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => setCurrentView('stream')} title="Kursflöde">
                                     <i className="bi bi-chat-square-text-fill fs-5"></i>
-                                    <span className="fw-bold d-none d-md-block">Stream</span>
                                 </button>
-                                <button className={`btn btn-sm ${currentView === 'todo' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center gap-2`} onClick={() => setCurrentView('todo')} title="Att göra">
+                                <button className={`btn btn-sm ${currentView === 'todo' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => setCurrentView('todo')} title="Att göra">
                                     <i className="bi bi-check2-square fs-5"></i>
-                                    <span className="fw-bold d-none d-md-block">Todo</span>
                                 </button>
                            </div>
                            <div className="vr mx-2"></div>
@@ -570,62 +604,82 @@ function App() {
                            {currentCourse && <a href={currentCourse.alternateLink} target="_blank" rel="noreferrer" className="btn btn-link btn-sm text-decoration-none" title="Öppna i Classroom"><i className="bi bi-box-arrow-up-right"></i></a>}
                        </div>
                        <div className="d-flex align-items-center gap-2">
-                           {currentView === 'matrix' && selectedCourseId && (
-                           <>
-                               <div className="input-group input-group-sm" style={{ width: '200px' }}>
-                                    <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
-                                    <input type="text" className="form-control border-start-0 ps-0" placeholder="Filtrera..." value={filterText} onChange={(e) => setAssignmentFilters(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} />
-                               </div>
-                               <div className="d-flex align-items-center gap-2 ms-2 me-3">
-                                    <div className="form-check form-check-inline m-0" title="Visa/dölj prov och uppgifter med poäng">
-                                        <input className="form-check-input" type="checkbox" id="checkGraded" checked={showGraded} onChange={e => setShowGraded(e.target.checked)} />
-                                        <label className="form-check-label small" htmlFor="checkGraded">Prov</label>
-                                    </div>
-                                    <div className="form-check form-check-inline m-0" title="Visa/dölj uppgifter utan poäng">
-                                        <input className="form-check-input" type="checkbox" id="checkUngraded" checked={showUngraded} onChange={e => setShowUngraded(e.target.checked)} />
-                                        <label className="form-check-label small" htmlFor="checkUngraded">Uppg.</label>
-                                    </div>
-                                    <div className="form-check form-check-inline m-0" title="Visa endast uppgifter med inlämningar att rätta">
-                                        <input className="form-check-input" type="checkbox" id="checkPending" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
-                                        <label className="form-check-label small" htmlFor="checkPending">Att rätta</label>
-                                    </div>
-                               </div>
-                                                         <select onChange={(e) => setSortConfig(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} value={sortConfig[selectedCourseId] || 'name-asc'} className="form-select form-select-sm" style={{ width: '130px' }} title="Sortera listan">
-                                                            <option value="name-asc">A-Ö</option>
-                                                            <option value="name-desc">Ö-A</option>
-                                                            <option value="perf-struggle">Varning</option>
-                                                            <option value="perf-top">Bäst</option>
-                                                            <option value="submission-desc">Mest inlämnat</option>
-                                                        </select>                               <button onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)} className="btn btn-success btn-sm d-flex align-items-center gap-2" title="Exportera Excel"><i className="bi bi-file-earmark-spreadsheet"></i> <span className="d-none d-md-inline">Excel</span></button>
-                               <div className="vr mx-2"></div>
-                           </>
-                           )}
-                           {currentView === 'stream' && selectedCourseId && (
-                               <>
-                                    <button onClick={handleExportLogbook} className="btn btn-success btn-sm d-flex align-items-center gap-2" title="Ladda ner loggbok som textfil">
-                                        <i className="bi bi-file-text"></i> <span className="d-none d-md-inline">Loggbok</span>
-                                    </button>
-                                    <div className="vr mx-2"></div>
-                               </>
-                           )}
-                           {selectedCourseId || currentView === 'todo' ? (
-                                <>
-                                    <button onClick={() => {
-                                        if (currentView === 'matrix') fetchCourseDetails(selectedCourseId, true);
-                                        else if (currentView === 'stream') fetchStreamData(selectedCourseId);
-                                        else if (currentView === 'todo') setTodoRefreshTrigger(prev => prev + 1);
-                                    }} disabled={currentView === 'matrix' ? loadingDetails[selectedCourseId] : currentView === 'stream' ? streamLoading : false} className="btn btn-outline-secondary btn-sm" title="Uppdatera"><i className={`bi bi-arrow-clockwise ${currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading ? 'spinner-border spinner-border-sm' : ''}`}></i></button>
-                                    {lastUpdated[selectedCourseId] && currentView === 'matrix' && <span className="small text-muted ms-2" style={{ fontSize: '0.7rem' }}>Uppdaterad: {lastUpdated[selectedCourseId]}</span>}
-                                </>
-                           ) : null}
+                           <button onClick={() => {
+                               if (currentView === 'matrix') fetchCourseDetails(selectedCourseId, true);
+                               else if (currentView === 'stream') fetchStreamData(selectedCourseId, true);
+                               else if (currentView === 'todo') setTodoRefreshTrigger(prev => prev + 1);
+                           }} 
+                           disabled={currentView === 'matrix' ? loadingDetails[selectedCourseId] : currentView === 'stream' ? streamLoading : false} 
+                           className="btn btn-outline-secondary btn-sm" 
+                           title={
+                               currentView === 'todo' 
+                                   ? (lastUpdated['todo'] ? `Uppdatera (Senast: ${lastUpdated['todo']})` : "Uppdatera")
+                                   : (lastUpdated[selectedCourseId] ? `Uppdatera (Senast: ${lastUpdated[selectedCourseId]})` : "Uppdatera")
+                           }
+                           >
+                               <i className={`bi bi-arrow-clockwise ${currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading ? 'spinner-border spinner-border-sm' : ''}`}></i>
+                           </button>
                            <button onClick={handleLogout} className="btn btn-light btn-sm text-danger" title="Logga ut"><i className="bi bi-power"></i></button>
                        </div>
                    </header>
+
+                   {/* Sub-header / Toolbar for View Specific Controls */}
+                   {(currentView === 'matrix' || currentView === 'stream') && selectedCourseId && (
+                       <div className="bg-white border-bottom px-4 py-1 d-flex align-items-center shadow-sm" style={{ minHeight: '45px', zIndex: 5 }}>
+                           {currentView === 'matrix' && (
+                               <div className="d-flex align-items-center w-100 justify-content-between">
+                                   <div className="d-flex align-items-center gap-3">
+                                       <div className="input-group input-group-sm" style={{ width: '200px' }}>
+                                            <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
+                                            <input type="text" className="form-control border-start-0 ps-0" placeholder="Filtrera uppgifter..." value={filterText} onChange={(e) => setAssignmentFilters(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} />
+                                       </div>
+                                       <div className="vr h-50 opacity-25"></div>
+                                       <div className="d-flex align-items-center gap-3">
+                                            <div className="form-check form-check-inline m-0" title="Visa/dölj prov och uppgifter med poäng">
+                                                <input className="form-check-input" type="checkbox" id="checkGraded" checked={showGraded} onChange={e => setShowGraded(e.target.checked)} />
+                                                <label className="form-check-label small fw-bold" htmlFor="checkGraded">Prov</label>
+                                            </div>
+                                            <div className="form-check form-check-inline m-0" title="Visa/dölj uppgifter utan poäng">
+                                                <input className="form-check-input" type="checkbox" id="checkUngraded" checked={showUngraded} onChange={e => setShowUngraded(e.target.checked)} />
+                                                <label className="form-check-label small fw-bold" htmlFor="checkUngraded">Uppg.</label>
+                                            </div>
+                                            <div className="form-check form-check-inline m-0" title="Visa endast uppgifter med inlämningar att rätta">
+                                                <input className="form-check-input" type="checkbox" id="checkPending" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
+                                                <label className="form-check-label small fw-bold text-danger" htmlFor="checkPending">Att rätta</label>
+                                            </div>
+                                       </div>
+                                       <div className="vr h-50 opacity-25"></div>
+                                       <select onChange={(e) => setSortConfig(prev => ({ ...prev, [selectedCourseId]: e.target.value }))} value={sortConfig[selectedCourseId] || 'name-asc'} className="form-select form-select-sm border-0 fw-bold text-primary bg-transparent" style={{ width: '140px' }} title="Sortera elever">
+                                            <option value="name-asc">Sortera: A-Ö</option>
+                                            <option value="name-desc">Sortera: Ö-A</option>
+                                            <option value="perf-struggle">Sortera: Varning</option>
+                                            <option value="perf-top">Sortera: Bäst</option>
+                                            <option value="submission-desc">Sortera: Mest gjort</option>
+                                        </select>
+                                   </div>
+                                   <button onClick={() => downloadCSV(selectedCourseId, currentCourse.name, groupedWork, details.students, details.submissions)} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold" title="Exportera till CSV (Excel)">
+                                       <i className="bi bi-file-earmark-spreadsheet fs-6"></i> EXPORTERA EXCEL
+                                   </button>
+                               </div>
+                           )}
+                           {currentView === 'stream' && (
+                               <div className="d-flex align-items-center w-100 justify-content-end">
+                                    <button onClick={handleExportLogbook} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold" title="Ladda ner som Markdown-fil">
+                                        <i className="bi bi-file-text fs-6"></i> EXPORTERA LOGGBOK
+                                    </button>
+                               </div>
+                           )}
+                       </div>
+                   )}
        
                    <main className="flex-grow-1 overflow-hidden d-flex flex-column position-relative bg-white">
                        {currentView === 'todo' ? (
                            <div className="flex-grow-1 overflow-auto bg-light">
-                               <TodoView selectedCourseId={selectedCourseId} refreshTrigger={todoRefreshTrigger} />
+                               <TodoView 
+                                    selectedCourseId={selectedCourseId} 
+                                    refreshTrigger={todoRefreshTrigger} 
+                                    onUpdate={(time) => setLastUpdated(prev => ({ ...prev, todo: time }))}
+                                />
                            </div>
                        ) : currentView === 'stream' ? (
                            <div className="flex-grow-1 overflow-auto bg-light">
