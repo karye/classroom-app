@@ -2,22 +2,34 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import { dbGet, dbSet } from '../db';
 
 const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
-    const [data, setData] = useState(() => {
-        const cached = localStorage.getItem('todo_cache_data');
-        if (cached && onUpdate) {
-            // Report cached timestamp if available
-            const savedTime = localStorage.getItem('todo_cache_timestamp');
-            if (savedTime) setTimeout(() => onUpdate(savedTime), 0);
-        }
-        return cached ? JSON.parse(cached) : [];
-    });
-    const [loading, setLoading] = useState(false); // No longer loading automatically
+    const [data, setData] = useState([]);
+    const [loading, setLoading] = useState(true); 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState(null);
-    const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); // format: "courseId-workId"
+    const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); // Small keys like this can stay in localStorage
     const [sortType, setSortType] = useState('date-desc'); // 'name-asc', 'date-desc', 'date-asc'
+
+    // Load initial data from IndexedDB
+    useEffect(() => {
+        const loadCache = async () => {
+            try {
+                const cached = await dbGet('todo_cache_data');
+                if (cached) {
+                    setData(cached);
+                    const savedTime = await dbGet('todo_cache_timestamp');
+                    if (savedTime && onUpdate) onUpdate(savedTime);
+                }
+            } catch (err) {
+                console.warn("Could not load Todo cache from IndexedDB", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadCache();
+    }, []);
 
     // Only fetch on manual trigger
     useEffect(() => {
@@ -34,8 +46,10 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
             const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
             setData(res.data);
-            localStorage.setItem('todo_cache_data', JSON.stringify(res.data));
-            localStorage.setItem('todo_cache_timestamp', now);
+            
+            // Save to IndexedDB (no quota issues)
+            await dbSet('todo_cache_data', res.data);
+            await dbSet('todo_cache_timestamp', now);
             
             if (onUpdate) onUpdate(now);
         } catch (err) {
@@ -66,24 +80,42 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
                     topicId: todo.topicId || 'none',
                     topicName: todo.topicName || 'Övrigt',
                     studentCount: course.studentCount,
-                    latestUpdate: new Date(todo.updateTime).getTime(),
-                    todos: []
+                    latestUpdate: 0, // Initialize to 0, will be updated by pending items
+                    pending: [],
+                    done: [],
+                    other: []
                 };
             }
-            groups[todo.workId].todos.push(todo);
-            const time = new Date(todo.updateTime).getTime();
-            if (time > groups[todo.workId].latestUpdate) groups[todo.workId].latestUpdate = time;
+            
+            // Categorize
+            if (todo.state === 'TURNED_IN') {
+                groups[todo.workId].pending.push(todo);
+                // Update latestUpdate ONLY for pending items to keep the focus on new work
+                if (todo.updateTime) {
+                    const time = new Date(todo.updateTime).getTime();
+                    if (time > groups[todo.workId].latestUpdate) {
+                        groups[todo.workId].latestUpdate = time;
+                    }
+                }
+            } else if (todo.state === 'RETURNED' || (typeof todo.assignedGrade !== 'undefined' && todo.assignedGrade !== null)) {
+                groups[todo.workId].done.push(todo);
+            } else {
+                groups[todo.workId].other.push(todo);
+            }
         });
         return Object.values(groups);
     });
 
-    // 2. Sort assignments globally before grouping by topic
-    const sortedAssignments = [...allAssignments].sort((a, b) => {
-        if (sortType === 'name-asc') return a.title.localeCompare(b.title);
-        if (sortType === 'date-desc') return b.latestUpdate - a.latestUpdate;
-        if (sortType === 'date-asc') return a.latestUpdate - b.latestUpdate;
-        return 0;
-    });
+    // 2. Filter assignments to only show those with at least one PENDING item (to keep it a TODO list)
+    // and Sort assignments globally before grouping by topic
+    const sortedAssignments = allAssignments
+        .filter(a => a.pending.length > 0)
+        .sort((a, b) => {
+            if (sortType === 'name-asc') return a.title.localeCompare(b.title, 'sv');
+            if (sortType === 'date-desc') return (b.latestUpdate || 0) - (a.latestUpdate || 0);
+            if (sortType === 'date-asc') return (a.latestUpdate || 0) - (b.latestUpdate || 0);
+            return 0;
+        });
 
     // 3. Group sorted assignments into topics
     const topicGroups = [];
@@ -232,7 +264,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
                                                     </div>
                                                 </div>
                                                 <span className={`badge rounded-pill flex-shrink-0 ${isActive ? 'bg-white text-primary' : 'bg-primary'}`} style={{ fontSize: '0.65rem' }}>
-                                                    {group.todos.length}
+                                                    {group.pending.length}
                                                 </span>
                                             </div>
                                         </button>
@@ -253,58 +285,97 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
                                     <div className="text-muted" style={{fontSize: '0.75rem'}}>
                                         {selectedGroup.courseName} 
                                         <span className="mx-2 opacity-50">•</span> 
-                                        <span className="fw-bold text-primary">{selectedGroup.todos.length} av {selectedGroup.studentCount}</span> har lämnat in
+                                        <span className="fw-bold text-primary">{selectedGroup.pending.length} att rätta</span> av {selectedGroup.studentCount} elever
                                     </div>
                                 </div>
                             </div>
                             
                             <div className="flex-grow-1 overflow-auto">
-                                <table className="table table-hover table-sm mb-0 w-100">
-                                    <thead className="table-light text-muted sticky-top" style={{fontSize: '0.7rem', zIndex: 10}}>
-                                        <tr>
-                                            <th className="ps-3 py-1 border-0 fw-normal">ELEV</th>
-                                            <th className="py-1 border-0 fw-normal">STATUS</th>
-                                            <th className="py-1 border-0 fw-normal text-end pe-3">INLÄMNAD</th>
-                                            <th className="py-1 border-0 fw-normal text-center" style={{ width: '40px' }}></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody style={{fontSize: '0.8rem'}}>
-                                        {selectedGroup.todos.sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime)).map(todo => (
-                                            <tr key={todo.id} className="align-middle border-bottom">
-                                                <td className="ps-3 py-1">
-                                                    <div className="d-flex align-items-center gap-2">
-                                                        {todo.studentPhoto ? (
-                                                            <img src={todo.studentPhoto} alt="" className="rounded-circle border" style={{ width: '24px', height: '24px' }} />
-                                                        ) : (
-                                                            <div className="bg-light rounded-circle border d-flex align-items-center justify-content-center text-muted" style={{ width: '24px', height: '24px' }}>
-                                                                <i className="bi bi-person" style={{fontSize: '0.8rem'}}></i>
-                                                            </div>
-                                                        )}
-                                                        <span className="fw-bold text-dark text-truncate" style={{maxWidth: '180px'}}>{todo.studentName}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="py-1">
-                                                    <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
-                                                        <i className="bi bi-check2 me-1"></i>Inlämnad
-                                                    </span>
-                                                    {todo.late && (
-                                                        <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 fw-normal ms-1 px-1 py-0" style={{fontSize: '0.65rem'}}>
-                                                            <i className="bi bi-clock-history me-1"></i>Sen
-                                                        </span>
-                                                    )}
-                                                </td>
-                                                <td className="text-end py-1 text-muted pe-3" style={{fontSize: '0.75rem'}}>
-                                                    {todo.updateTime ? format(parseISO(todo.updateTime), "d MMM HH:mm", { locale: sv }) : '-'}
-                                                </td>
-                                                <td className="text-center py-1">
-                                                    <a href={todo.submissionLink} target="_blank" rel="noreferrer" className="text-primary opacity-75 hover-opacity-100" title="Öppna inlämning">
-                                                        <i className="bi bi-box-arrow-up-right" style={{fontSize: '0.8rem'}}></i>
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                {/* RENDERING UTILITY */}
+                                {(() => {
+                                    const renderTable = (list, title, colorClass, emptyMsg) => {
+                                        if (list.length === 0 && !emptyMsg) return null;
+                                        return (
+                                            <div className="mb-4">
+                                                <div className={`bg-light px-3 py-1 border-bottom d-flex justify-content-between align-items-center ${colorClass}`} style={{fontSize: '0.7rem', fontWeight: 'bold'}}>
+                                                    <span>{title.toUpperCase()} ({list.length})</span>
+                                                </div>
+                                                {list.length > 0 ? (
+                                                    <table className="table table-hover table-sm mb-0 w-100">
+                                                        <tbody style={{fontSize: '0.8rem'}}>
+                                                            {[...list].sort((a, b) => {
+                                                                if (a.state === 'TURNED_IN') {
+                                                                    const timeA = a.updateTime ? new Date(a.updateTime).getTime() : 0;
+                                                                    const timeB = b.updateTime ? new Date(b.updateTime).getTime() : 0;
+                                                                    return timeB - timeA;
+                                                                }
+                                                                return a.studentName.localeCompare(b.studentName, 'sv');
+                                                            }).map(todo => (
+                                                                <tr key={todo.id} className="align-middle border-bottom">
+                                                                    <td className="ps-3 py-1">
+                                                                        <div className="d-flex align-items-center gap-2">
+                                                                            {todo.studentPhoto ? (
+                                                                                <img src={todo.studentPhoto} alt="" className="rounded-circle border" style={{ width: '24px', height: '24px' }} />
+                                                                            ) : (
+                                                                                <div className="bg-light rounded-circle border d-flex align-items-center justify-content-center text-muted" style={{ width: '24px', height: '24px' }}>
+                                                                                    <i className="bi bi-person" style={{fontSize: '0.8rem'}}></i>
+                                                                                </div>
+                                                                            )}
+                                                                            <span className={`fw-bold text-truncate ${todo.state === 'CREATED' || todo.state === 'NEW' ? 'text-muted' : 'text-dark'}`} style={{maxWidth: '180px'}}>{todo.studentName}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="py-1">
+                                                                        {todo.state === 'TURNED_IN' && (
+                                                                            <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
+                                                                                <i className="bi bi-check2 me-1"></i>Inlämnad
+                                                                            </span>
+                                                                        )}
+                                                                        {todo.state === 'RETURNED' && (
+                                                                            <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
+                                                                                <i className="bi bi-check-all me-1"></i>Klar
+                                                                            </span>
+                                                                        )}
+                                                                        {(todo.state === 'CREATED' || todo.state === 'NEW') && (
+                                                                            <span className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
+                                                                                <i className="bi bi-dash me-1"></i>Ej inlämnad
+                                                                            </span>
+                                                                        )}
+                                                                        {todo.late && todo.state === 'TURNED_IN' && (
+                                                                            <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 fw-normal ms-1 px-1 py-0" style={{fontSize: '0.65rem'}}>
+                                                                                <i className="bi bi-clock-history me-1"></i>Sen
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="text-end py-1 text-muted pe-3" style={{fontSize: '0.75rem'}}>
+                                                                        {todo.state === 'TURNED_IN' && todo.updateTime ? format(parseISO(todo.updateTime), "d MMM HH:mm", { locale: sv }) : ''}
+                                                                        {todo.state === 'RETURNED' && typeof todo.assignedGrade !== 'undefined' && todo.assignedGrade !== null && (
+                                                                            <span className="fw-bold text-primary">Betyg: {todo.assignedGrade}</span>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="text-center py-1">
+                                                                        <a href={todo.submissionLink} target="_blank" rel="noreferrer" className="text-primary opacity-75 hover-opacity-100" title="Öppna inlämning">
+                                                                            <i className="bi bi-box-arrow-up-right" style={{fontSize: '0.8rem'}}></i>
+                                                                        </a>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                ) : (
+                                                    <div className="p-3 text-muted small fst-italic">{emptyMsg}</div>
+                                                )}
+                                            </div>
+                                        );
+                                    };
+
+                                    return (
+                                        <>
+                                            {renderTable(selectedGroup.pending, "Att rätta", "text-danger bg-danger bg-opacity-10")}
+                                            {renderTable(selectedGroup.done, "Klara", "text-success bg-success bg-opacity-10")}
+                                            {renderTable(selectedGroup.other, "Ej inlämnade", "text-muted")}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
                     ) : (

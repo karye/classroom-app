@@ -4,11 +4,12 @@ import { format, getISOWeek, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import StreamView from './components/StreamView'
 import TodoView from './components/TodoView'
+import { dbGet, dbSet } from './db'
 import './App.css'
 
 function App() {
   const [courses, setCourses] = useState([])
-  const [selectedCourseId, setSelectedCourseId] = useState('')
+  const [selectedCourseId, setSelectedCourseId] = useState(localStorage.getItem('lastSelectedCourseId') || '')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
   const [courseDetails, setCourseDetails] = useState({})
@@ -45,21 +46,23 @@ function App() {
 
   // Load Stream Data from cache when switching to Stream view or changing course
   useEffect(() => {
-      if (currentView === 'stream' && selectedCourseId) {
-          const cacheKey = `stream_cache_${selectedCourseId}`;
-          const cached = localStorage.getItem(cacheKey);
-          if (cached) {
+      const loadStreamCache = async () => {
+          if (currentView === 'stream' && selectedCourseId) {
+              const cacheKey = `stream_cache_${selectedCourseId}`;
               try {
-                  const parsed = JSON.parse(cached);
-                  setStreamAnnouncements(parsed.data);
+                  const cached = await dbGet(cacheKey);
+                  if (cached) {
+                      setStreamAnnouncements(cached.data);
+                  } else {
+                      fetchStreamData(selectedCourseId);
+                  }
               } catch (e) {
-                  console.warn("Stream cache parse failed", e);
+                  console.warn("Stream cache load failed", e);
+                  fetchStreamData(selectedCourseId);
               }
-          } else {
-              // If no cache exists, fetch once to populate it
-              fetchStreamData(selectedCourseId);
           }
-      }
+      };
+      loadStreamCache();
   }, [currentView, selectedCourseId]);
 
   const checkLoginStatus = async () => {
@@ -67,7 +70,7 @@ function App() {
       const res = await axios.get('/api/user');
       setIsLoggedIn(res.data.loggedIn);
       if (res.data.loggedIn) {
-        fetchCourses();
+        await fetchCourses();
       }
     } catch (err) {
       console.error("Login check failed", err);
@@ -81,15 +84,13 @@ function App() {
       const cacheKey = `stream_cache_${courseId}`;
       
       if (!forceUpdate) {
-          const cached = localStorage.getItem(cacheKey);
-          if (cached) {
-              try {
-                  const parsed = JSON.parse(cached);
-                  setStreamAnnouncements(parsed.data);
-                  // Optionally fetch notes too if we want full cache, but notes are usually fast from DB
-              } catch (e) {
-                  console.warn("Stream cache parse failed", e);
+          try {
+              const cached = await dbGet(cacheKey);
+              if (cached) {
+                  setStreamAnnouncements(cached.data);
               }
+          } catch (e) {
+              console.warn("Stream cache load failed", e);
           }
       }
 
@@ -103,10 +104,10 @@ function App() {
           setStreamAnnouncements(annRes.data);
           setStreamNotes(notesRes.data);
           
-          localStorage.setItem(cacheKey, JSON.stringify({
+          await dbSet(cacheKey, {
               timestamp: Date.now(),
               data: annRes.data
-          }));
+          });
       } catch (err) {
           console.error("Failed to fetch stream data", err);
           setStreamError("Kunde inte hämta inlägg.");
@@ -179,11 +180,11 @@ function App() {
     }
   }
 
-  const handleCourseChange = (courseId) => {
+  const handleCourseChange = async (courseId) => {
       setSelectedCourseId(courseId);
       localStorage.setItem('lastSelectedCourseId', courseId);
       if (courseId && !courseDetails[courseId]) {
-          fetchCourseDetails(courseId);
+          await fetchCourseDetails(courseId);
       }
   }
 
@@ -202,18 +203,17 @@ function App() {
     const cacheKey = `course_cache_${courseId}`;
     
     if (!forceUpdate && !courseDetails[courseId]) {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-            try {
-                const parsed = JSON.parse(cached);
-                setCourseDetails(prev => ({ ...prev, [courseId]: parsed.data }));
-                if (parsed.timestamp) {
-                    setLastUpdated(prev => ({ ...prev, [courseId]: new Date(parsed.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
+        try {
+            const cached = await dbGet(cacheKey);
+            if (cached) {
+                setCourseDetails(prev => ({ ...prev, [courseId]: cached.data }));
+                if (cached.timestamp) {
+                    setLastUpdated(prev => ({ ...prev, [courseId]: new Date(cached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
                 }
                 return; 
-            } catch (e) {
-                console.warn("Cache parse failed", e);
             }
+        } catch (e) {
+            console.warn("Cache load failed", e);
         }
     }
 
@@ -224,10 +224,10 @@ function App() {
       setCourseDetails(prev => ({ ...prev, [courseId]: res.data }));
       setLastUpdated(prev => ({ ...prev, [courseId]: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
       
-      localStorage.setItem(cacheKey, JSON.stringify({
+      await dbSet(cacheKey, {
           timestamp: now,
           data: res.data
-      }));
+      });
     } catch (err) {
       console.error(`Failed to fetch details for course ${courseId}`, err);
     } finally {
@@ -604,6 +604,13 @@ function App() {
                            {currentCourse && <a href={currentCourse.alternateLink} target="_blank" rel="noreferrer" className="btn btn-link btn-sm text-decoration-none" title="Öppna i Classroom"><i className="bi bi-box-arrow-up-right"></i></a>}
                        </div>
                        <div className="d-flex align-items-center gap-2">
+                           <div className="text-muted small d-none d-md-block me-1">
+                               {currentView === 'todo' ? (
+                                   lastUpdated['todo'] && <span>Uppdaterad {lastUpdated['todo']}</span>
+                               ) : (
+                                   lastUpdated[selectedCourseId] && <span>Uppdaterad {lastUpdated[selectedCourseId]}</span>
+                               )}
+                           </div>
                            <button onClick={() => {
                                if (currentView === 'matrix') fetchCourseDetails(selectedCourseId, true);
                                else if (currentView === 'stream') fetchStreamData(selectedCourseId, true);
@@ -611,13 +618,9 @@ function App() {
                            }} 
                            disabled={currentView === 'matrix' ? loadingDetails[selectedCourseId] : currentView === 'stream' ? streamLoading : false} 
                            className="btn btn-outline-secondary btn-sm" 
-                           title={
-                               currentView === 'todo' 
-                                   ? (lastUpdated['todo'] ? `Uppdatera (Senast: ${lastUpdated['todo']})` : "Uppdatera")
-                                   : (lastUpdated[selectedCourseId] ? `Uppdatera (Senast: ${lastUpdated[selectedCourseId]})` : "Uppdatera")
-                           }
+                           title="Hämta senaste data från Google Classroom"
                            >
-                               <i className={`bi bi-arrow-clockwise ${currentView === 'matrix' ? loadingDetails[selectedCourseId] : streamLoading ? 'spinner-border spinner-border-sm' : ''}`}></i>
+                               <i className={`bi bi-arrow-clockwise ${currentView === 'matrix' ? (loadingDetails[selectedCourseId] ? 'spinner-border spinner-border-sm border-0' : '') : streamLoading ? 'spinner-border spinner-border-sm border-0' : ''}`}></i>
                            </button>
                            <button onClick={handleLogout} className="btn btn-light btn-sm text-danger" title="Logga ut"><i className="bi bi-power"></i></button>
                        </div>

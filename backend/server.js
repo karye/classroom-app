@@ -342,7 +342,11 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                     // A. Get Students (to map IDs to names)
                     classroom.courses.students.list({ courseId: course.id }).catch(e => ({ data: { students: [] } })),
                     // B. Get CourseWork (to get titles)
-                    classroom.courses.courseWork.list({ courseId: course.id }).catch(e => ({ data: { courseWork: [] } })),
+                    classroom.courses.courseWork.list({ 
+                        courseId: course.id,
+                        orderBy: 'updateTime desc',
+                        pageSize: 100 // Fetch more to be sure, we slice later
+                    }).catch(e => ({ data: { courseWork: [] } })),
                     // C. Get Topics
                     classroom.courses.topics.list({ courseId: course.id }).catch(e => ({ data: { topic: [] } }))
                 ]);
@@ -356,13 +360,13 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                 const topicMap = new Map(topics.map(t => [t.topicId, t.name]));
 
                 // D. Fetch submissions for all coursework.
+                // Increased back to 50 since IndexedDB handles the large payload easily
                 const recentWork = courseWork.slice(0, 50);
 
                 const subPromises = recentWork.map(cw => 
                     classroom.courses.courseWork.studentSubmissions.list({
                         courseId: course.id,
                         courseWorkId: cw.id,
-                        states: ['TURNED_IN'],
                         pageSize: 100
                     }).then(r => r.data.studentSubmissions || [])
                       .catch(() => [])
@@ -396,7 +400,9 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                         studentPhoto: student.photoUrl,
                         submissionLink: sub.alternateLink,
                         updateTime: sub.updateTime,
-                        late: sub.late
+                        late: sub.late,
+                        state: sub.state,
+                        assignedGrade: sub.assignedGrade
                     };
                 }).filter(Boolean);
 
