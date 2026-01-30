@@ -4,37 +4,39 @@ Detta dokument beskriver den planerade utvecklingen för **Classroom Matrix Dash
 
 ---
 
-## 📅 Fas 1: Polering & Anpassning (Kort sikt)
-*Fokus på att göra nuvarande funktioner mer flexibla och användarvänliga.*
+## 📅 Fas 1: Polering & Fördjupning (Kort sikt)
+*Fokus på att göra nuvarande insikter mer användbara.*
 
-### ⚙️ Konfigurerbara Gränser
-*   **Mål:** Låt läraren själv bestämma betygsgränserna.
-*   **Funktion:** En inställningspanel där användaren kan sätta gränser för färgerna (t.ex. ändra E-gräns från 50% till 60%) och tröskelvärdet för "Risk"-varning.
-
-### 🔍 Sök & Filtrering i Loggbok
-*   **Mål:** Gör det lättare att hitta gamla anteckningar.
+### 🔍 Avancerad Sökning
+*   **Mål:** Hitta info snabbt i stora kurser.
 *   **Funktion:** Utöka sökfältet i Stream-vyn så att det även söker i dina *privata anteckningar* (SQLite), inte bara i Google-inläggen.
 
 ### 🌙 Dark Mode
 *   **Mål:** Bättre ergonomi vid kvällsarbete.
-*   **Funktion:** Ett globalt tema-switch som byter gränssnittet till mörka färger.
+*   **Funktion:** En global tema-switch som byter gränssnittet till mörka färger.
 
 ---
 
-## 📈 Fas 2: Djupare Analys & Data (Medellång sikt)
-*Fokus på att ge läraren insikter om trender och elevhälsa.*
+## 📈 Fas 2: Trendanalys & Kommunikation (Medellång sikt)
+*Fokus på att ge läraren insikter om utveckling över tid.*
 
-### 📊 Elevkort & Trendanalys
-*   **Mål:** Se en elevs utveckling över tid.
-*   **Funktion:** Klicka på ett elevnamn för att öppna en modal/sida som visar en graf över inlämningar och resultat de senaste månaderna.
+### 📊 Historiska grafer
+*   **Mål:** Se en elevs utveckling grafiskt.
+*   **Funktion:** Utöka elevsammanställningen med en enkel graf över inlämningsfrekvens och resultat jämfört med klassens snitt.
 
 ### ⚠️ Utökad Risk-analys
 *   **Mål:** Tidigare upptäckt av elever som halkar efter.
 *   **Funktion:** Analysera inlämningsmönster. Varna inte bara för låga betyg, utan även för *brutna trender* (t.ex. "Eleven har inte lämnat in något på 2 veckor").
 
-### 📥 Export av Loggbok
-*   **Mål:** Kunna ta med sig planeringen.
-*   **Funktion:** Exportera loggboken/agendan till PDF eller direkt till ett Google Doc för utskrift eller arkivering.
+---
+
+## ✅ Avklarat & Genomfört
+
+*   **Migration till IndexedDB:** Fullt stöd för stora datamängder utan webbläsarbegränsningar.
+*   **Globala Filter:** Möjlighet att dölja specifika uppgifter och ämnen.
+*   **Elevsammanställning:** Snyggt "betygskort" med alla resultat, redo för utskrift.
+*   **Persistent Settings:** Inställningar sparas nu på servern per användare.
+*   **Modulär arkitektur:** Renare kodbas med dedikerade vy-komponenter.
 
 ---
 

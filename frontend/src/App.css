@@ -12,6 +12,14 @@ body {
 /* --- Matrix Table Overrides --- */
 /* We keep custom logic for sticky headers because Bootstrap tables don't support 2D sticky headers natively nicely */
 
+.spin {
+  animation: spinner-border .75s linear infinite;
+}
+
+@keyframes spinner-border {
+  to { transform: rotate(360deg); }
+}
+
 .matrix-wrapper {
   overflow-x: auto;
   position: relative;
@@ -59,23 +67,61 @@ body {
   top: 0;
   z-index: 30;
   background-color: var(--matrix-bg-header);
-  height: 30px;
+  height: 3rem; /* Height for 2 lines */
+  padding: 2px !important;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
+  font-size: 0.65rem; /* Smaller font */
+  letter-spacing: 0.02em;
   box-shadow: 0 1px 0 var(--matrix-border);
+  vertical-align: middle;
 }
 
 .sticky-header-assign {
   position: sticky;
-  top: 30px;
+  top: 3rem;
   z-index: 30;
   background-color: #ffffff;
-  height: 35px;
+  height: 4.5rem; /* Height for 4 lines */
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  padding: 4px !important;
   color: #6c757d; /* text-muted */
   font-weight: 500;
   box-shadow: 0 1px 0 var(--matrix-border);
+  vertical-align: top;
+  font-size: 0.65rem; /* Smaller font */
+}
+
+.sticky-header-summary {
+  width: 90px !important; /* Unified width */
+  min-width: 90px !important;
+  max-width: 90px !important;
+}
+
+/* Multiline ellipsis utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.line-clamp-4 {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.matrix-table th {
+  white-space: normal !important;
 }
 
 .sticky-col-student {
@@ -84,8 +130,8 @@ body {
   z-index: 20;
   background-color: #ffffff;
   border-right: 2px solid var(--matrix-border) !important;
-  min-width: 200px;
-  max-width: 250px;
+  min-width: 220px;
+  max-width: 220px;
   font-weight: 600;
   color: var(--matrix-text);
 }
@@ -99,21 +145,24 @@ body {
   background-color: var(--matrix-bg-header);
   border-right: 2px solid var(--matrix-border);
   border-bottom: 1px solid var(--matrix-border);
-  height: 30px;
+  height: 3rem;
 }
 
 .sticky-corner-2 {
   position: sticky;
-  top: 30px;
+  top: 3rem;
   left: 0;
   z-index: 40;
   background-color: #ffffff;
   border-right: 2px solid var(--matrix-border);
   border-bottom: 1px solid var(--matrix-border);
-  height: 35px;
+  height: 4.5rem;
   text-align: center;
   font-size: 0.7rem;
   color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Cell Interactiveness */
@@ -190,4 +239,70 @@ body {
   height: 4px;
   background-color: #0d6efd;
   border-radius: 50%;
+}
+
+/* --- Student Summary Overlay --- */
+.student-summary-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.student-summary-content {
+  background: white;
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  border-radius: 8px;
+  display: flex;
+  flex-column: column;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.student-summary-header {
+  padding: 20px 30px;
+  border-bottom: 1px solid #dee2e6;
+  background: #f8f9fa;
+}
+
+.student-summary-body {
+  padding: 30px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .student-summary-overlay {
+    position: static;
+    background: white;
+    padding: 0;
+  }
+  .student-summary-content {
+    box-shadow: none;
+    max-height: none;
+    width: 100%;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .student-summary-overlay, .student-summary-overlay * {
+    visibility: visible;
+  }
+  .student-summary-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
 }

@@ -10,15 +10,18 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
     *   **Privat Loggbok:** Skriv krypterade lektionsanteckningar kopplade till inlägg.
 *   **Todo (Att Göra):**
     *   Global lista ("Inbox Zero") över alla inlämningar som väntar på rättning.
+    *   **Kategorisering:** Se inlämnade, klara och ej påbörjade elever separat.
     *   **Ämnesgruppering:** Uppgifter i listan grupperas efter ämne för bättre arbetsflöde.
     *   **Tangentbordsnavigering:** Bläddra snabbt mellan uppgifter med piltangenterna.
-*   **Smart Cachning:** Alla vyer laddas omedelbart från lokal lagring (localStorage) medan nya data hämtas manuellt eller vid behov.
-*   **Tvåradigt Sidhuvud:** Enhetlig navigering i den övre raden och vy-specifika verktyg (filter, sortering, export) i den undre.
+*   **Globala Inställningar:** 
+    *   Exkludera specifika uppgifter eller hela ämnen baserat på sökord (t.ex. dölj "Lunch" eller "Närvaro").
+    *   Inställningar sparas permanent på servern och synkas mellan dina enheter.
+*   **Smart Cachning:** Alla vyer laddas omedelbart från **IndexedDB** för att hantera stora datamängder utan begränsningar.
 
 ## 🛠 Teknikstack
 
-*   **Frontend:** React (Vite), Bootstrap 5, Bootstrap Icons, React-Markdown.
-*   **Backend:** Node.js, Express, Google APIs, **SQLite** (krypterad lagring av anteckningar).
+*   **Frontend:** React (Vite), Bootstrap 5, IndexedDB (lokal lagring).
+*   **Backend:** Node.js, Express, Google APIs, **SQLite** (krypterad loggbok och användarinställningar).
 *   **Infrastruktur:** Docker & Docker Compose.
 
 ## ⚙️ Förberedelser (Google Cloud)

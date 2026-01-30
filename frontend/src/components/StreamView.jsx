@@ -1,36 +1,99 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { format, getISOWeek, isSameDay, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
+import { dbGet, dbSet } from '../db';
 
-const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNote, courseId }) => {
+const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
+    const [announcements, setAnnouncements] = useState([]);
+    const [notes, setNotes] = useState({});
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const [editingNoteId, setEditingNoteId] = useState(null);
     const [tempNoteContent, setTempNoteContent] = useState("");
     const [savingNote, setSavingNote] = useState(false);
     const [expandedPosts, setExpandedPosts] = useState({});
     const [selectedDate, setSelectedDate] = useState(undefined);
 
-    const togglePost = (postId) => {
-        setExpandedPosts(prev => ({
-            ...prev,
-            [postId]: !prev[postId]
-        }));
+    const setLocalLoading = (val) => {
+        setLoading(val);
+        if (onLoading) onLoading(val);
     };
 
-    const handleStartEdit = (postId, existingContent) => {
-        setEditingNoteId(postId);
-        setTempNoteContent(existingContent || "");
-        if (!expandedPosts[postId]) {
-            togglePost(postId);
+    // Load from cache or fetch
+    useEffect(() => {
+        const loadCache = async () => {
+            if (!courseId) return;
+            setLocalLoading(true);
+            try {
+                const cacheKey = `stream_cache_${courseId}`;
+                const cached = await dbGet(cacheKey);
+                
+                // Fetch notes (fast from DB)
+                const notesRes = await axios.get(`/api/notes/${courseId}`);
+                setNotes(notesRes.data);
+
+                if (cached) {
+                    setAnnouncements(cached.data);
+                } else {
+                    await fetchStreamData(courseId);
+                }
+            } catch (err) {
+                console.warn("Stream cache load failed", err);
+                await fetchStreamData(courseId);
+            } finally {
+                setLocalLoading(false);
+            }
+        };
+        loadCache();
+    }, [courseId]);
+
+    // Manual refresh
+    useEffect(() => {
+        if (refreshTrigger > 0 && courseId) {
+            fetchStreamData(courseId, true);
+        }
+    }, [refreshTrigger]);
+
+    const fetchStreamData = async (id, force = false) => {
+        if (!id) return;
+        if (force) setLocalLoading(true);
+        setError(null);
+        try {
+            const [annRes, notesRes] = await Promise.all([
+                axios.get(`/api/courses/${id}/announcements`),
+                axios.get(`/api/notes/${id}`)
+            ]);
+            setAnnouncements(annRes.data);
+            setNotes(notesRes.data);
+            
+            const now = Date.now();
+            if (onUpdate) onUpdate(new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+            await dbSet(`stream_cache_${id}`, {
+                timestamp: now,
+                data: annRes.data
+            });
+        } catch (err) {
+            console.error("Failed to fetch stream data", err);
+            setError("Kunde inte hämta inlägg.");
+        } finally {
+            if (force) setLocalLoading(false);
         }
     };
 
-    const handleSaveWrapper = async (postId) => {
+    const handleSaveNote = async (postId, content) => {
         setSavingNote(true);
         try {
-            await onSaveNote(postId, tempNoteContent);
+            await axios.post('/api/notes', {
+                courseId,
+                postId,
+                content
+            });
+            setNotes(prev => ({ ...prev, [postId]: content }));
             setEditingNoteId(null);
         } catch (err) {
             console.error("Save error:", err);
@@ -38,6 +101,42 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
         } finally {
             setSavingNote(false);
         }
+    };
+
+    const handleExportLogbook = () => {
+        const lines = [];
+        lines.push(`# Loggbok`);
+        lines.push(`Exporterad: ${new Date().toLocaleDateString('sv-SE')}\n`);
+
+        announcements.forEach(post => {
+            const postDate = parseISO(post.updateTime);
+            const dateStr = format(postDate, "yyyy-MM-dd HH:mm", { locale: sv });
+            const weekStr = getISOWeek(postDate);
+            
+            lines.push(`## ${dateStr} (v.${weekStr})`);
+            lines.push(`**Classroom:**\n${post.text || '(Ingen text)'}\n`);
+            
+            if (post.materials && post.materials.length > 0) {
+                 lines.push(`*Material:* ${post.materials.map(m => {
+                     if (m.driveFile) return `[Drive] ${m.driveFile.driveFile.title}`;
+                     if (m.link) return `[Länk] ${m.link.title}`;
+                     if (m.youtubeVideo) return `[Video] ${m.youtubeVideo.title}`;
+                     return 'Fil';
+                 }).join(', ')}\n`);
+            }
+
+            if (notes[post.id]) {
+                lines.push(`\n**Mina Anteckningar:**\n${notes[post.id]}\n`);
+            }
+            lines.push('---\n');
+        });
+
+        const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `loggbok_${new Date().toISOString().split('T')[0]}.md`;
+        link.click();
     };
 
     const renderMaterialCompact = (material, idx) => {
@@ -65,7 +164,7 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
     if (loading) {
         return (
             <div className="d-flex justify-content-center align-items-center h-100">
-                <div className="spinner-border text-primary" role="status"></div>
+                <i className="bi bi-arrow-clockwise spin text-primary" style={{ fontSize: '3rem' }}></i>
             </div>
         );
     }
@@ -91,40 +190,18 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
     let lastMonth = null;
 
     return (
-        <div className="container-fluid h-100">
-            <style>{`
-                .rdp { 
-                    --rdp-cell-size: 100%; 
-                    margin: 0; 
-                    width: 100%;
-                }
-                .rdp-table {
-                    max-width: 100%;
-                    width: 100%;
-                }
-                .rdp-day {
-                    width: 100%;
-                    aspect-ratio: 1;
-                    max-width: 40px;
-                    max-height: 40px;
-                    margin: auto;
-                }
-                .rdp-day_has_post::after {
-                    content: '';
-                    position: absolute;
-                    bottom: 3px;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    width: 4px;
-                    height: 4px;
-                    background-color: var(--bs-primary);
-                    border-radius: 50%;
-                }
-                @media (max-width: 768px) {
-                    .rdp { --rdp-cell-size: 30px; }
-                }
-            `}</style>
-            <div className="row h-100">
+        <div className="d-flex flex-column h-100">
+            {/* Toolbar */}
+            <div className="bg-white border-bottom px-4 py-1 d-flex align-items-center shadow-sm" style={{ minHeight: '45px', zIndex: 5 }}>
+                <div className="d-flex align-items-center w-100 justify-content-end">
+                    <button onClick={handleExportLogbook} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
+                        <i className="bi bi-file-text fs-6"></i> Exportera Loggbok
+                    </button>
+                </div>
+            </div>
+
+            <div className="container-fluid flex-grow-1 overflow-hidden">
+                <div className="row h-100">
                 {/* Calendar Sidebar */}
                 <div className="col-md-3 col-lg-3 border-end bg-light p-3 h-100 d-none d-md-block overflow-auto">
                     <div className="bg-white rounded shadow-sm p-2 mb-3 d-flex justify-content-center overflow-hidden">
@@ -296,7 +373,8 @@ const StreamView = ({ announcements, notes, loading, error, onRefresh, onSaveNot
                 </div>
             </div>
         </div>
-    );
+    </div>
+);
 };
 
 export default StreamView;

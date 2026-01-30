@@ -484,6 +484,39 @@ app.post('/api/notes', checkAuth, (req, res) => {
     });
 });
 
+// --- Settings API ---
+
+app.get('/api/settings', checkAuth, (req, res) => {
+    const userId = req.session.userId;
+    db.get('SELECT data FROM settings WHERE user_id = ?', [userId], (err, row) => {
+        if (err) {
+            console.error('Settings fetch error:', err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(row ? JSON.parse(row.data) : {});
+    });
+});
+
+app.post('/api/settings', checkAuth, (req, res) => {
+    const userId = req.session.userId;
+    const settingsData = JSON.stringify(req.body);
+
+    const sql = `
+        INSERT INTO settings (user_id, data) 
+        VALUES (?, ?)
+        ON CONFLICT(user_id) 
+        DO UPDATE SET data = excluded.data, updated_at = CURRENT_TIMESTAMP
+    `;
+    
+    db.run(sql, [userId, settingsData], function(err) {
+        if (err) {
+            console.error('Settings save error:', err);
+            return res.status(500).json({ error: 'Failed to save settings' });
+        }
+        res.json({ success: true });
+    });
+});
+
 app.get('/api/user', (req, res) => {
     res.json({ loggedIn: !!req.session.tokens });
 });

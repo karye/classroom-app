@@ -34,6 +34,17 @@ function initDb() {
     db.run(sql, (err) => {
         if (err) console.error('Error creating table', err);
     });
+
+    const settingsSql = `
+        CREATE TABLE IF NOT EXISTS settings (
+            user_id TEXT PRIMARY KEY,
+            data TEXT NOT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `;
+    db.run(settingsSql, (err) => {
+        if (err) console.error('Error creating settings table', err);
+    });
 }
 
 module.exports = db;

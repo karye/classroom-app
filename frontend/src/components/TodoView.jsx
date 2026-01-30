@@ -4,7 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { dbGet, dbSet } from '../db';
 
-const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
+const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true); 
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -12,9 +12,23 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
     const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); // Small keys like this can stay in localStorage
     const [sortType, setSortType] = useState('date-desc'); // 'name-asc', 'date-desc', 'date-asc'
 
+    // Helper to check if a string matches any filter
+    const matchesFilterList = (text, filters) => {
+        if (!filters || filters.length === 0 || !text) return false;
+        const lowText = text.toLowerCase();
+        return filters.some(f => lowText.includes(f.toLowerCase()));
+    };
+
+    const setLocalLoading = (val, background = false) => {
+        if (!background) setLoading(val);
+        else setIsRefreshing(val);
+        if (onLoading) onLoading(val);
+    };
+
     // Load initial data from IndexedDB
     useEffect(() => {
         const loadCache = async () => {
+            setLocalLoading(true);
             try {
                 const cached = await dbGet('todo_cache_data');
                 if (cached) {
@@ -25,7 +39,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
             } catch (err) {
                 console.warn("Could not load Todo cache from IndexedDB", err);
             } finally {
-                setLoading(false);
+                setLocalLoading(false);
             }
         };
         loadCache();
@@ -39,7 +53,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
     }, [refreshTrigger]);
 
     const fetchTodos = async (isBackground = false) => {
-        setIsRefreshing(true);
+        setLocalLoading(true);
         setError(null);
         try {
             const res = await axios.get('/api/todos');
@@ -56,8 +70,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
             console.error("Failed to fetch todos", err);
             setError("Kunde inte hämta att-göra-listan.");
         } finally {
-            setLoading(false);
-            setIsRefreshing(false);
+            setLocalLoading(false, isBackground);
         }
     };
 
@@ -71,6 +84,10 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
     const allAssignments = filteredData.flatMap(course => {
         const groups = {};
         course.todos.forEach(todo => {
+            // Apply exclude filters (Assignment & Topic)
+            if (matchesFilterList(todo.workTitle, excludeFilters)) return;
+            if (matchesFilterList(todo.topicName, excludeTopicFilters)) return;
+
             if (!groups[todo.workId]) {
                 groups[todo.workId] = {
                     id: todo.workId,
@@ -200,8 +217,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
     if (loading) {
         return (
             <div className="d-flex justify-content-center align-items-center h-100">
-                <div className="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
-                <span className="text-muted small">Söker igenom klassrum...</span>
+                <i className="bi bi-arrow-clockwise spin text-primary" style={{ fontSize: '3rem' }}></i>
             </div>
         );
     }
@@ -310,10 +326,11 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate }) => {
                                                                     return timeB - timeA;
                                                                 }
                                                                 return a.studentName.localeCompare(b.studentName, 'sv');
-                                                            }).map(todo => (
+                                                            }).map((todo, index) => (
                                                                 <tr key={todo.id} className="align-middle border-bottom">
                                                                     <td className="ps-3 py-1">
                                                                         <div className="d-flex align-items-center gap-2">
+                                                                            <span className="text-muted small" style={{ minWidth: '20px' }}>{index + 1}.</span>
                                                                             {todo.studentPhoto ? (
                                                                                 <img src={todo.studentPhoto} alt="" className="rounded-circle border" style={{ width: '24px', height: '24px' }} />
                                                                             ) : (

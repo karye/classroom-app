@@ -2,6 +2,40 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
+## [2026-01-30] - "Stabilitet & Skalbarhet (IndexedDB & Globala Filter)"
+
+En genomgripande arkitektonisk uppdatering som gör appen redo för stora mängder data och ger användaren kontroll över vad som visas.
+
+### 🚀 Nytt & Tillagt
+*   **Migration till IndexedDB:**
+    *   Ersatt `localStorage` med `IndexedDB` för all tung cachning.
+    *   Stöd för nästintill obegränsad datamängd (löser "QuotaExceededError").
+    *   Asynkron laddning förhindrar att UI låser sig vid stora JSON-objekt.
+*   **Globala Inställningar (Beständiga):**
+    *   Nytt inställningsfönster (Bootstrap 5 Modal) via kugghjul i headern.
+    *   **Sökordsfilter:** Dölj uppgifter eller hela ämnen baserat på sökord (t.ex. "Närvaro").
+    *   **Server-lagring:** Inställningar sparas i serverns SQLite-databas och synkas mellan enheter.
+*   **Förbättrad Matris-vy:**
+    *   **Elevsammanställning:** Klicka på en elev för att se ett snyggt "betygskort" med alla resultat.
+    *   **Utskriftsoptimering:** Specifika stilar för utskrift av elevsammanställningar.
+    *   **Profilbilder:** Elevernas foton visas nu direkt i matrisraderna.
+    *   **Layout:** Fixerad kolumnbredd (90px) och stöd för 4 rader text i rubriker.
+*   **Smartare Todo-vy:**
+    *   **Tredelad lista:** Visar nu inte bara "Att rätta", utan även "Klara" och "Ej inlämnade" elever under varje uppgift.
+    *   **Global filtrering:** Respekterar nu även de nya sökordsfiltren.
+
+### 💅 Design & UX
+*   **Animerad Feedback:** Den stora roterande pilen mitt på skärmen (och i headern) ger tydlig respons i alla vyer när data hämtas.
+*   **Svensk Sortering:** Alla listor och matriser sorteras nu strikt enligt svenska regler (`localeCompare('sv')`).
+*   **Enhetlig Stil:** Standardiserad laddningsvy i alla tre huvudmoduler.
+
+### 🔧 Backend & Arkitektur
+*   **Modulär Kod:** `App.jsx` har brutits ut i självständiga komponenter (`MatrixView`, `StreamView`, `TodoView`) som sköter sin egen data.
+*   **Databasutökning:** Ny tabell `settings` i SQLite för användarkonfiguration.
+*   **API-optimering:** Ökat hämtningsgränsen till 50 uppgifter per kurs för att ge en mer komplett bild.
+
+---
+
 ## [2026-01-30] - "Inbox Zero & UI-ombyggnad"
 
 En omfattande uppdatering med fokus på effektivitet i rättningsarbetet och ett mer strukturerat användargränssnitt.
