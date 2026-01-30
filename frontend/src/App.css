@@ -213,11 +213,33 @@ body {
 
 /* React Day Picker Styles override */
 .rdp {
-  --rdp-cell-size: 40px;
+  --rdp-cell-size: 32px; /* Base size */
+  --rdp-day_button-width: 100%; /* Force responsive width */
+  --rdp-day_button-height: 100%; 
+  --rdp-caption-font-size: 0.9rem;
   --rdp-accent-color: #0d6efd;
   --rdp-background-color: #e7f1ff;
   margin: 0;
+  font-size: 0.75rem;
+  width: 100%;
+  max-width: 280px; /* Limit maximum growth */
 }
+
+/* Ensure the grid fills the available width */
+.rdp-month_grid {
+  width: 100% !important;
+}
+
+/* Make day buttons flexible and square */
+.rdp-day_button {
+  width: 100% !important;
+  max-width: var(--rdp-cell-size);
+  aspect-ratio: 1;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
 .rdp-day_selected:not([aria-disabled="true"]) { 
   background-color: var(--rdp-accent-color); 
   color: white;

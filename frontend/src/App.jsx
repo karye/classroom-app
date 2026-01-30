@@ -100,6 +100,9 @@ function App() {
   const handleCourseChange = (courseId) => {
       setSelectedCourseId(courseId);
       localStorage.setItem('lastSelectedCourseId', courseId);
+      if (!courseId) {
+          setCurrentView('todo');
+      }
   }
 
   const handleLogin = () => { window.location.href = '/auth/google'; }

@@ -139,6 +139,22 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
         link.click();
     };
 
+    const togglePost = (postId) => {
+        setExpandedPosts(prev => ({
+            ...prev,
+            [postId]: !prev[postId]
+        }));
+    };
+
+    const handleStartEdit = (postId, content) => {
+        setEditingNoteId(postId);
+        setTempNoteContent(content || "");
+    };
+
+    const handleSaveWrapper = (postId) => {
+        handleSaveNote(postId, tempNoteContent);
+    };
+
     const renderMaterialCompact = (material, idx) => {
         let icon = "bi-file-earmark";
         let color = "text-secondary";
@@ -174,7 +190,7 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
             <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
                 <i className="bi bi-exclamation-circle fs-1 mb-2"></i>
                 <p>{error}</p>
-                <button className="btn btn-outline-primary btn-sm" onClick={onRefresh}>Försök igen</button>
+                <button className="btn btn-outline-primary btn-sm" onClick={() => fetchStreamData(courseId, true)}>Försök igen</button>
             </div>
         );
     }
@@ -201,10 +217,10 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
             </div>
 
             <div className="container-fluid flex-grow-1 overflow-hidden">
-                <div className="row h-100">
+                <div className="row h-100 flex-nowrap">
                 {/* Calendar Sidebar */}
-                <div className="col-md-3 col-lg-3 border-end bg-light p-3 h-100 d-none d-md-block overflow-auto">
-                    <div className="bg-white rounded shadow-sm p-2 mb-3 d-flex justify-content-center overflow-hidden">
+                <div className="col-md-3 col-lg-3 border-end bg-light p-3 h-100 d-none d-md-block overflow-auto" style={{ minWidth: '380px', width: '380px' }}>
+                    <div className="bg-white rounded shadow-sm p-2 mb-3 d-flex justify-content-center" style={{ fontSize: '0.8rem' }}>
                         <div style={{ maxWidth: '100%' }}>
                             <DayPicker
                                 mode="single"
@@ -231,8 +247,8 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
                 </div>
 
                 {/* Main Feed */}
-                <div className="col-md-9 col-lg-9 p-0 h-100 overflow-auto bg-white">
-                    <div className="container py-4" style={{ maxWidth: '800px' }}>
+                <div className="flex-grow-1 p-0 h-100 overflow-auto bg-white">
+                    <div className="py-4 px-5" style={{ maxWidth: '900px' }}>
                         {filteredAnnouncements.length === 0 ? (
                              <div className="text-center text-muted mt-5">
                                  <i className="bi bi-calendar-x fs-1 opacity-25"></i>

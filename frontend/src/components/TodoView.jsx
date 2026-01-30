@@ -11,6 +11,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     const [error, setError] = useState(null);
     const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); // Small keys like this can stay in localStorage
     const [sortType, setSortType] = useState('date-desc'); // 'name-asc', 'date-desc', 'date-asc'
+    const [hideEmptyAssignments, setHideEmptyAssignments] = useState(localStorage.getItem('todo_hide_empty') === 'true');
 
     // Helper to check if a string matches any filter
     const matchesFilterList = (text, filters) => {
@@ -45,10 +46,18 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
         loadCache();
     }, []);
 
+    useEffect(() => {
+        localStorage.setItem('todo_hide_empty', hideEmptyAssignments);
+    }, [hideEmptyAssignments]);
+
     // Only fetch on manual trigger
     useEffect(() => {
         if (refreshTrigger > 0) {
-            fetchTodos(true);
+            if (selectedCourseId) {
+                fetchSingleCourseTodo(selectedCourseId);
+            } else {
+                fetchTodos(true);
+            }
         }
     }, [refreshTrigger]);
 
@@ -71,6 +80,43 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
             setError("Kunde inte hämta att-göra-listan.");
         } finally {
             setLocalLoading(false, isBackground);
+        }
+    };
+
+    const fetchSingleCourseTodo = async (courseId) => {
+        if (!courseId) return;
+        setIsRefreshing(true);
+        try {
+            const res = await axios.get(`/api/courses/${courseId}/todos`);
+            const newData = res.data; // Object or null
+
+            // Update state: replace the course data in the array
+            setData(prevData => {
+                const existingIndex = prevData.findIndex(c => c.courseId === courseId);
+                let nextData = [...prevData];
+                
+                if (newData) {
+                    if (existingIndex >= 0) {
+                        nextData[existingIndex] = newData;
+                    } else {
+                        nextData.push(newData);
+                    }
+                } else {
+                    if (existingIndex >= 0) nextData.splice(existingIndex, 1);
+                }
+                
+                // Update cache
+                dbSet('todo_cache_data', nextData);
+                return nextData;
+            });
+
+            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (onUpdate) onUpdate(now);
+
+        } catch (err) {
+            console.error("Failed to update single course", err);
+        } finally {
+            setIsRefreshing(false);
         }
     };
 
@@ -126,7 +172,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     // 2. Filter assignments to only show those with at least one PENDING item (to keep it a TODO list)
     // and Sort assignments globally before grouping by topic
     const sortedAssignments = allAssignments
-        .filter(a => a.pending.length > 0)
+        .filter(a => !hideEmptyAssignments || a.pending.length > 0)
         .sort((a, b) => {
             if (sortType === 'name-asc') return a.title.localeCompare(b.title, 'sv');
             if (sortType === 'date-desc') return (b.latestUpdate || 0) - (a.latestUpdate || 0);
@@ -171,7 +217,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                 localStorage.setItem('todo_last_selected_work', firstKey);
             }
         }
-    }, [loading, sortedAssignments.length]);
+    }, [loading, sortedAssignments.length, selectedCourseId]);
 
     // Persist selection
     useEffect(() => {
@@ -214,44 +260,57 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
 
     // --- RENDERING ---
 
-    if (loading) {
-        return (
-            <div className="d-flex justify-content-center align-items-center h-100">
-                <i className="bi bi-arrow-clockwise spin text-primary" style={{ fontSize: '3rem' }}></i>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="p-4 text-center text-danger">
-                <i className="bi bi-exclamation-triangle me-2"></i>{error}
-                <button className="btn btn-link btn-sm" onClick={() => fetchTodos()}>Försök igen</button>
-            </div>
-        );
-    }
-
-    if (sortedAssignments.length === 0) {
-        return (
-            <div className="d-flex flex-column justify-content-center align-items-center h-100 text-muted">
-                {isRefreshing ? <div className="spinner-border text-secondary mb-3" role="status"></div> : <i className="bi bi-check2-circle fs-1 opacity-25 mb-2"></i>}
-                <p>Inga uppgifter att rätta!</p>
-                <button className="btn btn-outline-secondary btn-sm" onClick={() => fetchTodos()}>Uppdatera</button>
-            </div>
-        );
-    }
-
     return (
         <div className={`container-fluid p-0 h-100 d-flex flex-column position-relative ${isRefreshing ? 'opacity-50' : ''}`} style={{transition: 'opacity 0.2s'}}>
+            
+            {/* Toolbar (Consistent with MatrixView) */}
+            <div className="bg-white border-bottom px-4 py-1 d-flex align-items-center shadow-sm" style={{ minHeight: '45px', zIndex: 5 }}>
+                <div className="d-flex align-items-center w-100 justify-content-between">
+                    <div className="d-flex align-items-center gap-3">
+                        {/* Sort */}
+                        <div className="d-flex align-items-center gap-2">
+                             <i className="bi bi-sort-down text-muted"></i>
+                             <select className="form-select form-select-sm border-0 fw-bold text-dark bg-transparent ps-0" style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }} value={sortType} onChange={(e) => setSortType(e.target.value)}>
+                                 <option value="date-desc">Sortera: Nyast först</option>
+                                 <option value="date-asc">Sortera: Äldst först</option>
+                                 <option value="name-asc">Sortera: Namn (A-Ö)</option>
+                             </select>
+                        </div>
+
+                        <div className="vr h-50 opacity-25"></div>
+
+                        {/* Filter */}
+                        <div className="form-check form-check-inline m-0">
+                             <input className="form-check-input" type="checkbox" id="hideEmpty" checked={hideEmptyAssignments} onChange={e => setHideEmptyAssignments(e.target.checked)} />
+                             <label className="form-check-label small fw-bold" htmlFor="hideEmpty">Dölj utan inlämningar</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="d-flex flex-grow-1 overflow-hidden">
-                {/* Left Sidebar: Assignments Grouped by Topic */}
-                <div className="col-md-4 col-lg-3 border-end bg-light overflow-auto h-100 shadow-sm" style={{zIndex: 2}}>
+                {loading && data.length === 0 ? (
+                    <div className="d-flex justify-content-center align-items-center w-100 h-100">
+                        <i className="bi bi-arrow-clockwise spin text-primary" style={{ fontSize: '3rem' }}></i>
+                    </div>
+                ) : error ? (
+                    <div className="p-4 text-center text-danger w-100 mt-5">
+                        <i className="bi bi-exclamation-triangle me-2"></i>{error}
+                        <button className="btn btn-link btn-sm" onClick={() => fetchTodos()}>Försök igen</button>
+                    </div>
+                ) : sortedAssignments.length === 0 ? (
+                    <div className="d-flex flex-column justify-content-center align-items-center w-100 h-100 text-muted">
+                        {isRefreshing ? <div className="spinner-border text-secondary mb-3" role="status"></div> : <i className="bi bi-check2-circle fs-1 opacity-25 mb-2"></i>}
+                        <p>Inga uppgifter att rätta!</p>
+                        {!isRefreshing && <button className="btn btn-outline-secondary btn-sm" onClick={() => fetchTodos()}>Uppdatera</button>}
+                    </div>
+                ) : (
+                    <>
+                        {/* Left Sidebar: Assignments Grouped by Topic */}
+                        <div className="col-md-4 col-lg-3 border-end bg-light overflow-auto h-100 shadow-sm" style={{zIndex: 2}}>
                     <div className="sticky-top bg-light border-bottom p-2 d-flex justify-content-between align-items-center">
-                        <span className="text-muted fw-bold" style={{fontSize: '0.7rem'}}>UPPGIFTER ({sortedAssignments.length})</span>
-                        <div className="btn-group btn-group-sm">
-                            <button className={`btn btn-link p-1 ${sortType === 'name-asc' ? 'text-primary' : 'text-muted'}`} onClick={() => setSortType('name-asc')} title="A-Ö"><i className="bi bi-sort-alpha-down"></i></button>
-                            <button className={`btn btn-link p-1 ${sortType === 'date-desc' ? 'text-primary' : 'text-muted'}`} onClick={() => setSortType('date-desc')} title="Nyast först"><i className="bi bi-sort-numeric-down-alt"></i></button>
-                            <button className={`btn btn-link p-1 ${sortType === 'date-asc' ? 'text-primary' : 'text-muted'}`} onClick={() => setSortType('date-asc')} title="Äldst först"><i className="bi bi-sort-numeric-up"></i></button>
+                        <div className="d-flex align-items-center gap-2">
+                            <span className="text-muted fw-bold" style={{fontSize: '0.7rem'}}>UPPGIFTER ({sortedAssignments.length})</span>
                         </div>
                     </div>
                     
@@ -328,7 +387,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                                                                 return a.studentName.localeCompare(b.studentName, 'sv');
                                                             }).map((todo, index) => (
                                                                 <tr key={todo.id} className="align-middle border-bottom">
-                                                                    <td className="ps-3 py-1">
+                                                                    <td className="ps-3 py-1" style={{ width: '40%' }}>
                                                                         <div className="d-flex align-items-center gap-2">
                                                                             <span className="text-muted small" style={{ minWidth: '20px' }}>{index + 1}.</span>
                                                                             {todo.studentPhoto ? (
@@ -341,7 +400,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                                                                             <span className={`fw-bold text-truncate ${todo.state === 'CREATED' || todo.state === 'NEW' ? 'text-muted' : 'text-dark'}`} style={{maxWidth: '180px'}}>{todo.studentName}</span>
                                                                         </div>
                                                                     </td>
-                                                                    <td className="py-1">
+                                                                    <td className="py-1" style={{ width: '25%' }}>
                                                                         {todo.state === 'TURNED_IN' && (
                                                                             <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
                                                                                 <i className="bi bi-check2 me-1"></i>Inlämnad
@@ -363,13 +422,13 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                                                                             </span>
                                                                         )}
                                                                     </td>
-                                                                    <td className="text-end py-1 text-muted pe-3" style={{fontSize: '0.75rem'}}>
+                                                                    <td className="text-end py-1 text-muted pe-3" style={{fontSize: '0.75rem', width: '25%'}}>
                                                                         {todo.state === 'TURNED_IN' && todo.updateTime ? format(parseISO(todo.updateTime), "d MMM HH:mm", { locale: sv }) : ''}
                                                                         {todo.state === 'RETURNED' && typeof todo.assignedGrade !== 'undefined' && todo.assignedGrade !== null && (
                                                                             <span className="fw-bold text-primary">Betyg: {todo.assignedGrade}</span>
                                                                         )}
                                                                     </td>
-                                                                    <td className="text-center py-1">
+                                                                    <td className="text-center py-1" style={{ width: '10%' }}>
                                                                         <a href={todo.submissionLink} target="_blank" rel="noreferrer" className="text-primary opacity-75 hover-opacity-100" title="Öppna inlämning">
                                                                             <i className="bi bi-box-arrow-up-right" style={{fontSize: '0.8rem'}}></i>
                                                                         </a>
@@ -396,13 +455,15 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                             </div>
                         </div>
                     ) : (
-                        <div className="d-flex flex-column justify-content-center align-items-center h-100 text-muted opacity-50 p-5">
+                        <div className="d-flex flex-column justify-content-center align-items-center h-100 text-muted opacity-50 p-5 w-100">
                             <i className="bi bi-arrow-left-circle fs-1 mb-3"></i>
                             <h4 className="fw-light">Välj en uppgift</h4>
                             <p className="small">Använd piltangenterna eller klicka till vänster.</p>
                         </div>
                     )}
                 </div>
+                </>
+            )}
             </div>
         </div>
     );

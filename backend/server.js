@@ -136,6 +136,27 @@ const getRedirectUri = (req) => {
     return `${proto}://${host}/auth/google/callback`;
 };
 
+// --- Concurrency Helper ---
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const runWithLimit = async (items, limit, fn) => {
+    const results = [];
+    const executing = [];
+    for (const item of items) {
+        // Add small delay to smooth out burst traffic
+        await wait(50); 
+        const p = Promise.resolve().then(() => fn(item));
+        results.push(p);
+        const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+        executing.push(e);
+        if (executing.length >= limit) {
+            await Promise.race(executing);
+        }
+    }
+    return Promise.all(results);
+};
+// --------------------------
+
 app.get('/auth/google', (req, res) => {
     const redirectUri = getRedirectUri(req);
     console.log('--- /auth/google called ---');
@@ -274,21 +295,21 @@ app.get('/api/courses/:courseId/details', checkAuth, async (req, res) => {
         const topics = topicsRes.data.topic || [];
 
         // 4. Fetch Submissions for each CourseWork
-        // We limit this to the fetched coursework (max 100). 
-        // Note: This spawns multiple requests.
-        const submissionsPromises = coursework.map(cw => 
-            classroom.courses.courseWork.studentSubmissions.list({
-                courseId,
-                courseWorkId: cw.id,
-                pageSize: 100 // assuming 1 submission per student per assignment usually fits
-            }).then(res => res.data.studentSubmissions || [])
-              .catch(err => {
-                  console.error(`Failed to fetch submissions for cw ${cw.id}`, err.message);
-                  return [];
-              })
-        );
+        // Use global runWithLimit with concurrency 10
+        const submissionsArrays = await runWithLimit(coursework, 10, async (cw) => {
+             try {
+                 const res = await classroom.courses.courseWork.studentSubmissions.list({
+                    courseId,
+                    courseWorkId: cw.id,
+                    pageSize: 100 // assuming 1 submission per student per assignment usually fits
+                });
+                return res.data.studentSubmissions || [];
+             } catch (err) {
+                 console.error(`Failed to fetch submissions for cw ${cw.id}`, err.message);
+                 return [];
+             }
+        });
 
-        const submissionsArrays = await Promise.all(submissionsPromises);
         const submissions = submissionsArrays.flat();
 
         res.json({
@@ -323,6 +344,105 @@ app.get('/api/courses/:courseId/announcements', checkAuth, async (req, res) => {
 
 // --- Todo API ---
 
+app.get('/api/courses/:courseId/todos', checkAuth, async (req, res) => {
+    const { courseId } = req.params;
+    console.log(`[DEBUG] Fetching todos for single course: ${courseId}`);
+    try {
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+
+        // A. Get Course (to ensure it exists and get name)
+        const courseRes = await classroom.courses.get({ id: courseId }).catch(() => null);
+        if (!courseRes) return res.status(404).json({ error: 'Course not found' });
+        const course = courseRes.data;
+
+        // Parallel fetch for details
+        const [studentsRes, courseWorkRes, topicsRes] = await Promise.all([
+            classroom.courses.students.list({ courseId }).catch(e => ({ data: { students: [] } })),
+            classroom.courses.courseWork.list({ 
+                courseId,
+                orderBy: 'updateTime desc',
+                pageSize: 100
+            }).catch(e => ({ data: { courseWork: [] } })),
+            classroom.courses.topics.list({ courseId }).catch(e => ({ data: { topic: [] } }))
+        ]);
+
+        const students = studentsRes.data.students || [];
+        const courseWork = courseWorkRes.data.courseWork || [];
+        const topics = topicsRes.data.topic || [];
+
+        console.log(`[DEBUG] Found ${students.length} students, ${courseWork.length} coursework, ${topics.length} topics`);
+
+        if (courseWork.length === 0) {
+            console.log('[DEBUG] No coursework found, returning null');
+            return res.json(null);
+        }
+        
+        const topicMap = new Map(topics.map(t => [t.topicId, t.name]));
+        const recentWork = courseWork.slice(0, 50);
+
+        // Fetch submissions with global runWithLimit
+        const submissionsArrays = await runWithLimit(recentWork, 10, async (cw) => {
+            try {
+                const r = await classroom.courses.courseWork.studentSubmissions.list({
+                    courseId,
+                    courseWorkId: cw.id,
+                    pageSize: 100
+                });
+                return r.data.studentSubmissions || [];
+            } catch (e) {
+                console.warn(`Fetch submission failed for CW ${cw.id}: ${e.message}`);
+                return [];
+            }
+        });
+        
+        const submissions = submissionsArrays.flat();
+        console.log(`[DEBUG] Fetched ${submissions.length} raw submissions`);
+
+        if (submissions.length === 0) return res.json(null);
+
+        const studentMap = new Map(students.map(s => [s.userId, s.profile]));
+        const workMap = new Map(courseWork.map(cw => [cw.id, cw]));
+
+        const todoItems = submissions.map(sub => {
+            const student = studentMap.get(sub.userId);
+            const work = workMap.get(sub.courseWorkId);
+            if (!student || !work) return null;
+
+            return {
+                id: sub.id,
+                courseId: course.id,
+                courseName: course.name,
+                workId: sub.courseWorkId,
+                workTitle: work.title,
+                workLink: work.alternateLink,
+                topicId: work.topicId,
+                topicName: topicMap.get(work.topicId) || 'Övrigt',
+                studentId: sub.userId,
+                studentName: student.name.fullName,
+                studentPhoto: student.photoUrl,
+                submissionLink: sub.alternateLink,
+                updateTime: sub.updateTime,
+                late: sub.late,
+                state: sub.state,
+                assignedGrade: sub.assignedGrade
+            };
+        }).filter(Boolean);
+
+        console.log(`[DEBUG] Returning ${todoItems.length} processed todo items`);
+
+        res.json({
+            courseId: course.id,
+            courseName: course.name,
+            studentCount: students.length,
+            todos: todoItems
+        });
+
+    } catch (error) {
+        console.error(`Single course todo fetch error for ${courseId}:`, error);
+        res.status(500).json({ error: 'Failed to fetch course todos' });
+    }
+});
+
 app.get('/api/todos', checkAuth, async (req, res) => {
     try {
         const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
@@ -334,8 +454,8 @@ app.get('/api/todos', checkAuth, async (req, res) => {
         if (allCourses.length === 0) return res.json([]);
 
         // 2. Fetch data for each course in parallel
-        // Optimization: Use Promise.all to fetch everything at once
-        const todosPromises = allCourses.map(async (course) => {
+        // Use runWithLimit for courses (max 3 concurrent courses)
+        const results = await runWithLimit(allCourses, 3, async (course) => {
             try {
                 // Parallelize sub-requests for this course
                 const [studentsRes, courseWorkRes, topicsRes] = await Promise.all([
@@ -363,16 +483,22 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                 // Increased back to 50 since IndexedDB handles the large payload easily
                 const recentWork = courseWork.slice(0, 50);
 
-                const subPromises = recentWork.map(cw => 
-                    classroom.courses.courseWork.studentSubmissions.list({
-                        courseId: course.id,
-                        courseWorkId: cw.id,
-                        pageSize: 100
-                    }).then(r => r.data.studentSubmissions || [])
-                      .catch(() => [])
-                );
+                // Fetch submissions with global runWithLimit (max 10 concurrent requests per course)
+                const submissionsArrays = await runWithLimit(recentWork, 10, async (cw) => {
+                    try {
+                        const r = await classroom.courses.courseWork.studentSubmissions.list({
+                            courseId: course.id,
+                            courseWorkId: cw.id,
+                            pageSize: 100
+                        });
+                        return r.data.studentSubmissions || [];
+                    } catch (e) {
+                        // Log warnings but don't fail entire fetch
+                        console.warn(`Fetch submission failed for CW ${cw.id}: ${e.message}`);
+                        return [];
+                    }
+                });
                 
-                const submissionsArrays = await Promise.all(subPromises);
                 const submissions = submissionsArrays.flat();
 
                 if (submissions.length === 0) return null;
@@ -421,7 +547,6 @@ app.get('/api/todos', checkAuth, async (req, res) => {
             }
         });
 
-        const results = await Promise.all(todosPromises);
         const filteredResults = results.filter(Boolean); // Remove nulls (courses with no pending work)
         
         res.json(filteredResults);
