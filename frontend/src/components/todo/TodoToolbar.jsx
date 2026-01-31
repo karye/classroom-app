@@ -1,10 +1,24 @@
 import React from 'react';
 
-const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmptyAssignments }) => {
+const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmptyAssignments, filterText, setFilterText }) => {
     return (
         <div className="bg-white border-bottom px-4 py-1 d-flex align-items-center shadow-sm" style={{ minHeight: '45px', zIndex: 5 }}>
             <div className="d-flex align-items-center w-100 justify-content-between">
-                <div className="d-flex align-items-center gap-3">
+                <div className="d-flex align-items-center gap-3 w-100">
+                    {/* Search */}
+                    <div className="input-group input-group-sm" style={{ maxWidth: '200px' }}>
+                        <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
+                        <input 
+                            type="text" 
+                            className="form-control border-start-0 ps-0" 
+                            placeholder="Filtrera uppgifter..." 
+                            value={filterText} 
+                            onChange={(e) => setFilterText(e.target.value)} 
+                        />
+                    </div>
+
+                    <div className="vr h-50 opacity-25"></div>
+
                     {/* Sort */}
                     <div className="d-flex align-items-center gap-2">
                             <i className="bi bi-sort-down text-muted"></i>

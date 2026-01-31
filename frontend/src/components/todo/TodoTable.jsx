@@ -1,6 +1,7 @@
 import React from 'react';
 import { format, parseISO } from 'date-fns';
 import { sv } from 'date-fns/locale';
+import StatusBadge from '../common/StatusBadge';
 
 const TodoTable = ({ list, title, colorClass, emptyMsg }) => {
     if (list.length === 0 && !emptyMsg) return null;
@@ -36,26 +37,7 @@ const TodoTable = ({ list, title, colorClass, emptyMsg }) => {
                                     </div>
                                 </td>
                                 <td className="py-1" style={{ width: '25%' }}>
-                                    {todo.state === 'TURNED_IN' && (
-                                        <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
-                                            <i className="bi bi-check2 me-1"></i>Inlämnad
-                                        </span>
-                                    )}
-                                    {todo.state === 'RETURNED' && (
-                                        <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
-                                            <i className="bi bi-check-all me-1"></i>Klar
-                                        </span>
-                                    )}
-                                    {(todo.state === 'CREATED' || todo.state === 'NEW') && (
-                                        <span className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 fw-normal px-1 py-0" style={{fontSize: '0.65rem'}}>
-                                            <i className="bi bi-dash me-1"></i>Ej inlämnad
-                                        </span>
-                                    )}
-                                    {todo.late && todo.state === 'TURNED_IN' && (
-                                        <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 fw-normal ms-1 px-1 py-0" style={{fontSize: '0.65rem'}}>
-                                            <i className="bi bi-clock-history me-1"></i>Sen
-                                        </span>
-                                    )}
+                                    <StatusBadge status={todo.state} late={todo.late} />
                                 </td>
                                 <td className="text-end py-1 text-muted pe-3" style={{fontSize: '0.75rem', width: '25%'}}>
                                     {todo.state === 'TURNED_IN' && todo.updateTime ? format(parseISO(todo.updateTime), "d MMM HH:mm", { locale: sv }) : ''}

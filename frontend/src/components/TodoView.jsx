@@ -18,6 +18,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); 
     const [sortType, setSortType] = useState('date-desc'); 
     const [hideEmptyAssignments, setHideEmptyAssignments] = useState(localStorage.getItem('todo_hide_empty') === 'true');
+    const [filterText, setFilterText] = useState('');
 
     // Helper to check if a string matches any filter
     const matchesFilterList = (text, filters) => {
@@ -175,7 +176,11 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
 
     // 2. Filter and Sort
     const sortedAssignments = allAssignments
-        .filter(a => !hideEmptyAssignments || a.pending.length > 0)
+        .filter(a => {
+            if (hideEmptyAssignments && a.pending.length === 0) return false;
+            if (filterText && !a.title.toLowerCase().includes(filterText.toLowerCase())) return false;
+            return true;
+        })
         .sort((a, b) => {
             if (sortType === 'name-asc') return a.title.localeCompare(b.title, 'sv');
             if (sortType === 'date-desc') return (b.latestUpdate || 0) - (a.latestUpdate || 0);
@@ -270,7 +275,9 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                 sortType={sortType} 
                 setSortType={setSortType} 
                 hideEmptyAssignments={hideEmptyAssignments} 
-                setHideEmptyAssignments={setHideEmptyAssignments} 
+                setHideEmptyAssignments={setHideEmptyAssignments}
+                filterText={filterText}
+                setFilterText={setFilterText}
             />
 
             <div className="d-flex flex-grow-1 overflow-hidden">

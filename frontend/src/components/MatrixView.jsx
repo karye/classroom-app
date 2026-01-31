@@ -7,6 +7,7 @@ import LoadingSpinner from './common/LoadingSpinner';
 import ExportPreviewModal from './common/ExportPreviewModal';
 import StudentSummary from './matrix/StudentSummary';
 import MatrixTable from './matrix/MatrixTable';
+import StatusBadge from './common/StatusBadge';
 
 const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
     const [details, setDetails] = useState(null);
@@ -101,9 +102,24 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
 
     const getSubmissionText = (sub, cw) => {
         const isGraded = cw && cw.maxPoints > 0;
-        if (!sub) return isGraded ? "" : <i className="bi bi-dash text-muted opacity-50" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
-        if (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) return <span className="fw-bold">{sub.assignedGrade}</span>;
-        if (isGraded) return "";
+        
+        // 1. Has Grade
+        if (typeof sub?.assignedGrade !== 'undefined' && sub?.assignedGrade !== null) {
+            return <span className="fw-bold">{sub.assignedGrade}</span>;
+        }
+
+        // 2. No submission object (effectively CREATED)
+        if (!sub) {
+            return isGraded ? "" : <i className="bi bi-dash text-muted opacity-50" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
+        }
+        
+        // 3. Graded but no grade yet (only show action-needed icon)
+        if (isGraded) {
+             if (sub.state === 'TURNED_IN') return <i className="bi bi-check text-success fs-6" title="Inlämnad"></i>;
+             return "";
+        }
+
+        // 4. Ungraded (show simple icons)
         switch (sub.state) {
             case 'TURNED_IN': return <i className="bi bi-check text-success fs-6" title="Inlämnad"></i>;
             case 'RETURNED': return <i className="bi bi-check-all text-success fs-6" title="Klar"></i>;
@@ -370,13 +386,16 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
                              </div>
                         </div>
                         <div className="vr h-50 opacity-25"></div>
-                        <select onChange={(e) => setSortType(e.target.value)} value={sortType} className="form-select form-select-sm border-0 fw-bold text-primary bg-transparent" style={{ width: '140px' }}>
-                             <option value="name-asc">Sortera: A-Ö</option>
-                             <option value="name-desc">Sortera: Ö-A</option>
-                             <option value="perf-struggle">Sortera: Varning</option>
-                             <option value="perf-top">Sortera: Bäst</option>
-                             <option value="submission-desc">Sortera: Mest gjort</option>
-                         </select>
+                        <div className="d-flex align-items-center gap-2">
+                            <i className="bi bi-sort-down text-muted"></i>
+                            <select onChange={(e) => setSortType(e.target.value)} value={sortType} className="form-select form-select-sm border-0 fw-bold text-dark bg-transparent ps-0" style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }}>
+                                <option value="name-asc">Sortera: A-Ö</option>
+                                <option value="name-desc">Sortera: Ö-A</option>
+                                <option value="perf-struggle">Sortera: Varning</option>
+                                <option value="perf-top">Sortera: Bäst</option>
+                                <option value="submission-desc">Sortera: Mest gjort</option>
+                            </select>
+                        </div>
                     </div>
                     <button onClick={() => handleGenerateCSV(courseName, groupedWork, details.students, details.submissions)} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
                         <i className="bi bi-file-earmark-spreadsheet fs-6"></i> Exportera Excel

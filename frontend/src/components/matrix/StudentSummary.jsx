@@ -1,4 +1,5 @@
 import React from 'react';
+import StatusBadge from '../common/StatusBadge';
 
 const StudentSummary = ({ student, courseName, onClose, groupedWork, getSubmission }) => {
     if (!student) return null;
@@ -44,33 +45,18 @@ const StudentSummary = ({ student, courseName, onClose, groupedWork, getSubmissi
                                 <tbody>
                                     {group.assignments.map(cw => {
                                         const sub = getSubmission(student.userId, cw.id);
-                                        let statusIcon = <i className="bi bi-dash-circle text-danger opacity-75" title="Ej inlämnad"></i>;
                                         let resultText = "-";
-
-                                        if (sub) {
-                                            switch (sub.state) {
-                                                case 'TURNED_IN': 
-                                                    statusIcon = <i className="bi bi-check text-success fs-5" title="Inlämnad"></i>;
-                                                    break;
-                                                case 'RETURNED': 
-                                                    statusIcon = <i className="bi bi-check-all text-success fs-5" title="Klar"></i>;
-                                                    break;
-                                                case 'RECLAIMED_BY_STUDENT': 
-                                                    statusIcon = <i className="bi bi-arrow-counterclockwise text-warning" title="Återtaget"></i>;
-                                                    break;
-                                                default: 
-                                                    statusIcon = <i className="bi bi-dash-circle text-danger opacity-75" title="Ej inlämnad"></i>;
-                                            }
-                                            if (typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) {
-                                                resultText = `${sub.assignedGrade} / ${cw.maxPoints}`;
-                                            }
+                                        let status = sub ? sub.state : 'CREATED';
+                                        
+                                        if (sub && typeof sub.assignedGrade !== 'undefined' && sub.assignedGrade !== null) {
+                                            resultText = `${sub.assignedGrade} / ${cw.maxPoints}`;
                                         }
 
                                         return (
                                             <tr key={cw.id} className="align-middle">
                                                 <td className="ps-3 py-1 border-bottom" style={{ fontSize: '0.85rem' }}>{cw.title}</td>
                                                 <td className="text-center py-1 border-bottom">
-                                                    {statusIcon}
+                                                    <StatusBadge status={status} late={sub?.late} />
                                                 </td>
                                                 <td className="text-end py-1 border-bottom pe-3 fw-bold" style={{ fontSize: '0.85rem' }}>
                                                     {resultText}

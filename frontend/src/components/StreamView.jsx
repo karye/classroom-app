@@ -20,6 +20,7 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
     const [savingNote, setSavingNote] = useState(false);
     const [expandedPosts, setExpandedPosts] = useState({});
     const [selectedDate, setSelectedDate] = useState(undefined);
+    const [filterText, setFilterText] = useState('');
 
     // Export State
     const [showExportModal, setShowExportModal] = useState(false);
@@ -198,9 +199,15 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
     }
 
     // Filter logic
-    const filteredAnnouncements = selectedDate 
-        ? announcements.filter(post => isSameDay(parseISO(post.updateTime), selectedDate))
-        : announcements;
+    const filteredAnnouncements = announcements.filter(post => {
+        if (selectedDate && !isSameDay(parseISO(post.updateTime), selectedDate)) return false;
+        
+        // Search in text
+        const contentMatch = (post.text || '').toLowerCase().includes(filterText.toLowerCase());
+        
+        if (filterText && !contentMatch) return false;
+        return true;
+    });
 
     // Days with posts for calendar highlighting
     const daysWithPosts = announcements.map(post => parseISO(post.updateTime));
@@ -219,7 +226,13 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
 
             {/* Toolbar */}
             <div className="bg-white border-bottom px-4 py-1 d-flex align-items-center shadow-sm" style={{ minHeight: '45px', zIndex: 5 }}>
-                <div className="d-flex align-items-center w-100 justify-content-end">
+                <div className="d-flex align-items-center w-100 justify-content-between">
+                     <div className="d-flex align-items-center gap-3">
+                        <div className="input-group input-group-sm" style={{ width: '200px' }}>
+                             <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
+                             <input type="text" className="form-control border-start-0 ps-0" placeholder="Filtrera inlägg..." value={filterText} onChange={(e) => setFilterText(e.target.value)} />
+                        </div>
+                     </div>
                     <button onClick={handleGenerateLogbook} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
                         <i className="bi bi-file-text fs-6"></i> Exportera Loggbok
                     </button>
