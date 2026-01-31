@@ -170,7 +170,8 @@ app.get('/auth/google', (req, res) => {
             'https://www.googleapis.com/auth/classroom.profile.emails',
             'https://www.googleapis.com/auth/classroom.topics.readonly',
             'https://www.googleapis.com/auth/classroom.announcements.readonly',
-            'https://www.googleapis.com/auth/userinfo.profile'
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/calendar.readonly'
         ];
         
         // Generate auth URL using the dynamic redirect URI
@@ -331,7 +332,7 @@ app.get('/api/courses/:courseId/announcements', checkAuth, async (req, res) => {
         const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
         const response = await classroom.courses.announcements.list({
             courseId,
-            pageSize: 100, // Ökat från 20 till 100 för att täcka en termin
+            pageSize: 100,
             orderBy: 'updateTime desc'
         });
         
@@ -339,6 +340,167 @@ app.get('/api/courses/:courseId/announcements', checkAuth, async (req, res) => {
     } catch (error) {
         console.error('Fetch announcements error:', error);
         res.status(500).json({ error: 'Failed to fetch announcements' });
+    }
+});
+
+app.get('/api/events', checkAuth, async (req, res) => {
+    console.log('[DEBUG] Fetching GLOBAL events for ALL courses');
+    try {
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+        
+        // 1. Fetch all active courses to build search terms
+        const coursesRes = await classroom.courses.list({ courseStates: ['ACTIVE'] });
+        const courses = coursesRes.data.courses || [];
+        
+        if (courses.length === 0) return res.json([]);
+
+        // Build a map of terms -> courseName to identify events later
+        const termToCourse = new Map();
+        const allTerms = new Set();
+
+        courses.forEach(c => {
+            const name = c.name || '';
+            const section = c.section || '';
+            
+            // Extract codes
+            const codeRegex = /[A-Z]{3,}[A-Z0-9]{2,}/g;
+            const codes = (name + ' ' + section).match(codeRegex) || [];
+            
+            // Break down parts
+            const parts = (name + ' ' + section)
+                .replace(/[()]/g, ' ')
+                .split(/[\s_-]+/)
+                .filter(p => p.length > 3);
+
+            const terms = [...codes, ...parts, section, name].filter(t => t && t.length > 2);
+            
+            terms.forEach(term => {
+                const lowerTerm = term.toLowerCase();
+                if (!allTerms.has(lowerTerm)) {
+                    allTerms.add(lowerTerm);
+                    // Map term to course name (first match wins for simplicity)
+                    if (!termToCourse.has(lowerTerm)) {
+                        termToCourse.set(lowerTerm, c.name);
+                    }
+                }
+            });
+        });
+
+        console.log(`[DEBUG] Collected ${allTerms.size} unique search terms from ${courses.length} courses.`);
+
+        // 2. Fetch all calendar events
+        const calendar = google.calendar({ version: 'v3', auth: globalOauth2Client });
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+        const eventsRes = await calendar.events.list({
+            calendarId: 'primary',
+            timeMin: threeMonthsAgo.toISOString(),
+            maxResults: 1000, // Increased limit for global fetch
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+        
+        const allEvents = eventsRes.data.items || [];
+        console.log(`[DEBUG] Fetched ${allEvents.length} events from calendar.`);
+
+        // 3. Filter and Tag events
+        const matchedEvents = allEvents.map(ev => {
+            const text = ((ev.summary || '') + ' ' + (ev.description || '') + ' ' + (ev.location || '')).toLowerCase();
+            
+            // Find which course matched (if any)
+            let matchedCourseName = null;
+            for (const term of allTerms) {
+                if (text.includes(term)) {
+                    matchedCourseName = termToCourse.get(term);
+                    break; 
+                }
+            }
+
+            if (matchedCourseName) {
+                return { ...ev, courseName: matchedCourseName };
+            }
+            return null;
+        }).filter(Boolean); // Remove nulls
+
+        console.log(`[DEBUG] Returning ${matchedEvents.length} global events.`);
+        res.json(matchedEvents);
+
+    } catch (error) {
+        console.error('Global event fetch error:', error);
+        res.json([]);
+    }
+});
+
+app.get('/api/courses/:courseId/events', checkAuth, async (req, res) => {
+    const { courseId } = req.params;
+    console.log(`[DEBUG] Fetching events from PRIMARY calendar for course context: ${courseId}`);
+    try {
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+        
+        // Get Course info to use for filtering primary calendar events
+        const courseRes = await classroom.courses.get({ id: courseId });
+        const courseName = courseRes.data.name || '';
+        const courseSection = courseRes.data.section || '';
+        
+        console.log(`[DEBUG] Course Info - Name: "${courseName}", Section (Avsnitt): "${courseSection}"`);
+
+        // 1. Extract potential course codes (e.g., "PRRPRR01") 
+        const codeRegex = /[A-Z]{3,}[A-Z0-9]{2,}/g; 
+        const codes = (courseName + ' ' + courseSection).match(codeRegex) || [];
+
+        // 2. Break down names into parts (e.g., "DigSkap (TE25A)" -> ["DigSkap", "TE25A"])
+        const parts = (courseName + ' ' + courseSection)
+            .replace(/[()]/g, ' ')
+            .split(/[\s_-]+/)
+            .filter(p => p.length > 3); // Only keep words longer than 3 chars
+
+        // Combine all terms
+        const searchTerms = [
+            ...codes,
+            ...parts,
+            courseSection,
+            courseName
+        ].filter(t => t && t.length > 2); 
+        
+        const uniqueTerms = [...new Set(searchTerms)];
+
+        console.log(`[DEBUG] Final search terms for '${courseName}':`, uniqueTerms);
+
+        const calendar = google.calendar({ version: 'v3', auth: globalOauth2Client });
+        
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+        const eventsRes = await calendar.events.list({
+            calendarId: 'primary',
+            timeMin: threeMonthsAgo.toISOString(),
+            maxResults: 500, 
+            singleEvents: true,
+            orderBy: 'startTime',
+        });
+        
+        const allEvents = eventsRes.data.items || [];
+        console.log(`[DEBUG] Fetched ${allEvents.length} total events. Filtering...`);
+
+        const matchedEvents = allEvents.filter(ev => {
+            const summary = (ev.summary || '').toLowerCase();
+            const description = (ev.description || '').toLowerCase();
+            const location = (ev.location || '').toLowerCase();
+            const fullText = summary + ' ' + description + ' ' + location;
+            
+            return uniqueTerms.some(term => fullText.includes(term.toLowerCase()));
+        });
+
+        console.log(`[DEBUG] Found ${matchedEvents.length} matches.`);
+        res.json(matchedEvents);
+
+    } catch (error) {
+        console.error('Calendar fetch error:', error.message);
+        if (error.response) {
+            console.error('Error details:', error.response.data);
+        }
+        res.json([]);
     }
 });
 

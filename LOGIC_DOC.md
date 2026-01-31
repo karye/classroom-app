@@ -1,73 +1,61 @@
 # Teknisk Logik & Algoritmer
 
-Detta dokument beskriver beräkningar, säkerhetslösningar, API-strategier och systemarkitekturen.
+Detta dokument beskriver beräkningar, datasynkronisering och systemarkitekturen.
 
 ---
 
-## 1. Uppgiftslogik & Visualisering
+## 1. Kalender & Schema (Global Synk)
 
-Applikationen använder en strikt logik för att visualisera uppgifter baserat på två faktorer: **Uppgiftstyp** (har den poäng?) och **Tillstånd** (status). Målet är att skilja på *prestation* (betyg) och *process* (att göra).
+Applikationen använder en avancerad strategi för att bygga det globala schemat (`ScheduleView`).
 
-### A. Uppgiftstyper
-Systemet skiljer automatiskt på två typer av uppgifter baserat på data från Google Classroom:
-1.  **Bedömda uppgifter (Prov/Inlämningar):** Har `maxPoints > 0`. Här är resultatet (siffran) det centrala.
-2.  **Kvittensuppgifter (Läxor/Info):** Har inga poäng (`maxPoints` är 0 eller null). Här är statusen (Gjort/Inte gjort) det centrala.
+### A. Datakällor
+Systemet hämtar data från två källor via Google Calendar API:
+1.  **Kurskalendrar:** Varje Classroom-kurs har en specifik kalender.
+2.  **Primär kalender:** Lärarens huvudkalender, där schemasynk-system (t.ex. Skola24) ofta lägger in lektioner.
 
-### B. Tillstånd & Visuellt Språk (Matrisen)
+### B. Smart Sökning (Reconciliation)
+För att hitta rätt händelser i den primära kalendern använder backend en "fuzzy matching"-algoritm:
+1.  **Analys:** För varje aktiv kurs analyseras Namn och Sektion (Avsnitt).
+2.  **Extrahering:** Vi letar efter mönster som liknar kurskoder (t.ex. `PRRPRR01`, `TE23A`) med RegEx.
+3.  **Filtrering:** Alla händelser i primärkalendern hämtas (senaste 3 mån) och filtreras lokalt. En händelse inkluderas om dess titel eller beskrivning matchar någon av kursens identifierare.
 
-Cellerna i matrisen ändrar utseende för att signalera vad som krävs av läraren.
-
-| Tillstånd (Google API) | Innebörd | Visuellt uttryck (Med Poäng) | Visuellt uttryck (Utan Poäng) |
-| :--- | :--- | :--- | :--- |
-| **Ej inlämnad**<br>`(NEW / CREATED)` | Eleven har inte gjort uppgiften. | **Vit bakgrund**<br>Grå dash `-` | **Vit bakgrund**<br>Grå dash `-` |
-| **Att Rätta / Agera**<br>`(TURNED_IN)` | Eleven har lämnat in. Bollen ligger hos dig. | **Ljusblå bakgrund** (`#e7f1ff`)<br>Grön inlämningsikon ✅ | **Ljusblå bakgrund** (`#e7f1ff`)<br>Blå cirkel-ikon 🔵 |
-| **Klar / Bedömd**<br>`(RETURNED)` | Du har rättat/återlämnat. | **Heatmap-färg** (se nedan)<br>Siffra (Betyget) | **Vit bakgrund**<br>Grön bock ✅ |
-
-*Nyckelprincip:* Den **ljusblå** färgen är en "Action-signal". Allt som är blått i matrisen är saker du behöver titta på eller rätta.
-
-### C. Heatmap-logik (Endast poänguppgifter)
-När en uppgift med poäng är rättad (`RETURNED` eller har `assignedGrade`), färgas cellen baserat på prestationsnivån (procent av maxpoäng):
-
-*   🟢 **Mörkgrön (High):** 90% - 100% (Utmärkt resultat)
-*   🌳 **Gräsgrön (Good):** 70% - 89% (Bra resultat)
-*   🟡 **Ljusgrön/Gul (Pass):** 50% - 69% (Godkänt)
-*   🔴 **Röd (Fail):** 0% - 49% (Underkänt/Varning)
-
-Denna heatmap gör det möjligt att snabbt scanna en klass och se mönster (t.ex. om många lyser rött på ett specifikt moment).
+### C. Layout-algoritm (Visualisering)
+För att visa schemat snyggt används en "Packing Algorithm":
+1.  **Klustring:** Händelser som överlappar i tid grupperas ihop.
+2.  **Kolumner:** Inom varje kluster fördelas händelserna i kolumner för att maximera bredden utan att överlappa visuellt.
+3.  **Resultat:** Lektioner som krockar visas sida-vid-sida, medan ensamma lektioner tar upp hela bredden.
 
 ---
 
-## 2. API-hantering & Rate Limiting
+## 2. Uppgiftslogik & Visualisering
 
-För att hantera Googles strikta API-kvoter ("Quota Exceeded") använder backend en skräddarsydd kö-hantering.
+### A. Status-hantering
+Systemet normaliserar status från Google Classroom till en intern modell:
+*   `TURNED_IN` -> **Action Needed** (Visas ofta grönt/blått).
+*   `RETURNED` -> **Done** (Visas som betyg eller klar-markering).
+*   `CREATED` -> **Pending** (Ej inlämnad).
 
-### Concurrency Control
-Istället för att bomba API:et med hundratals parallella anrop (vilket händer om man hämtar alla inlämningar för 20 kurser samtidigt), använder servern en strypningsmekanism:
-*   **Global Spärr:** Max 3 kurser bearbetas parallellt vid en "Uppdatera alla"-begäran.
-*   **Detaljerad Spärr:** Inom varje kurs hämtas max 10 uppgifter parallellt.
-*   **Delay:** En artificiell fördröjning på 50ms läggs in mellan varje anrop för att jämna ut belastningen över tid.
-
----
-
-## 3. Export-logik
-
-### Excel-kompatibilitet (CSV)
-Exporten är optimerad för att öppnas direkt i Excel (särskilt nordiska versioner):
-1.  **BOM (`\uFEFF`):** Filen inleds med en Byte Order Mark för att tvinga Excel att läsa UTF-8 (åäö) korrekt.
-2.  **Separator:** Semikolon (`;`) används istället för komma.
-3.  **Citattecken:** Alla fält kapslas in i citattecken för robusthet.
-4.  **Fallback-värden:** Om en elev saknar betyg men har lämnat in, exporteras texten "Inlämnad" eller "Klar" i cellen istället för att lämna den tom.
+### B. Matrisen
+Använder en kompakt visning:
+*   **Ikoner:** Används i rutnätet för att spara plats.
+*   **Färg:** Cellens bakgrundsfärg styrs av status (Ljusblå = Inlämnad) eller resultat (Heatmap).
 
 ---
 
-## 4. Säkerhet & Kryptering
+## 3. API & Prestanda
 
-Privata anteckningar i loggboken skyddas med **AES-256-CBC**.
-*   **Nyckel:** Unik nyckel per användare, härledd via `scrypt` från en global `MASTER_KEY` och användarens Google ID.
-*   **Lagring:** Data sparas som `iv:encrypted_text` i SQLite.
+### Rate Limiting (Concurrency Control)
+För att undvika "Quota Exceeded":
+*   **Kö-system:** Max 3 kurser bearbetas parallellt globalt.
+*   **Throttling:** Max 10 förfrågningar samtidigt per kurs, med 50ms fördröjning.
+
+### Offline-First & Caching
+*   **IndexedDB:** All data (Kurser, Inlägg, Matris, Schema) sparas lokalt.
+*   **Felhantering:** Om API:et returnerar fel (t.ex. 404 eller nätverksfel) vid en uppdatering, *behålls* den cachade datan på skärmen för att tillåta fortsatt arbete.
 
 ---
 
-## 5. Cachningsstrategi (IndexedDB)
+## 4. Säkerhet
 
-Frontend använder **IndexedDB** för att lagra hela datastrukturen lokalt. Detta möjliggör blixtsnabb sidladdning och navigering mellan kurser utan att behöva vänta på nya API-anrop.
+*   **Kryptering:** Loggboksanteckningar krypteras med AES-256-CBC innan de sparas i SQLite-databasen.
+*   **Auth:** OAuth 2.0 används för all kommunikation med Google. Token sparas i en krypterad session-cookie.

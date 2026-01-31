@@ -2,6 +2,42 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
+## [2026-01-31] - "Global Schema-vy & UI-harmonisering"
+
+En stor uppdatering som introducerar en helt ny schemamodul och skapar ett enhetligt visuellt språk genom hela applikationen.
+
+### 🚀 Nytt & Tillagt
+*   **Global Schema-vy (NY!):**
+    *   **Vertikal Veckokalender:** En ny huvudvy som visar lektioner från *alla* aktiva kurser i ett klassiskt schemaformat (08:00 - 18:00).
+    *   **Smart Kalender-synk:** Integrerad sökning som hämtar händelser både från Classrooms egna kalendrar och lärarens primära kalender (letar efter kurskoder som `PRRPRR01`, `WEUWEB01` etc.).
+    *   **Krockhantering:** Avancerad layoutalgoritm som placerar överlappande lektioner sida-vid-sida för en realistisk vy.
+    *   **Färgkodning:** Varje kurs får en unik pastellfärg baserat på dess namn för snabb igenkänning.
+*   **Enhetliga Status-piller (StatusBadge):**
+    *   Ny gemensam komponent för att visa status ("Inlämnad", "Klar", "Sen", "Ej inlämnad").
+    *   Implementerad i Todo-vyn och Elevöversikten för en konsekvent upplevelse.
+*   **Harmoniserade Verktygsrader:**
+    *   Varje vy har nu en identisk verktygsrad med sökfält ("Filtrera...") till vänster.
+    *   Implementerat text-sökning i **Stream-vyn** och **Todo-vyn**.
+    *   Standardiserad stil på sorteringsväljare och knappar.
+
+### 💅 Design & UX
+*   **Omstrukturerad Navigering:** Schema-ikonen har flyttats längst till vänster och separerats med en vertikal linje för att markera dess globala natur.
+*   **Visuell Feedback:** Kursväljaren tonas nu ner (50% opacitet) när man befinner sig i Schema-vyn eftersom den inte är applicerbar där.
+*   **Optimerad Matris:** Cellerna i matrisen använder nu ultrakompakta ikoner istället för piller för att behålla överblickbarheten, medan de detaljerade vyerna behåller de tydliga pillren.
+
+### 🔧 Backend & Arkitektur
+*   **Global händelse-endpoint:** Ny `/api/events` som aggregerar söktermer från alla kurser och filtrerar kalenderdata i ett svep.
+*   **Offline-First Robusthet:**
+    *   Förbättrad felhantering i alla vyer: Om nätverket svajar eller API:et ger 404, behålls den gamla cachade datan på skärmen istället för att visa en felsida.
+    *   Automatisk ID-validering vid start som rensar bort gamla eller ogiltiga kursval.
+*   **Säkerhet:** Utökat OAuth-scopes för att inkludera `calendar.readonly`.
+
+### 🐛 Buggfixar
+*   **Återställd Endpoint:** Fixat ett fel där `/announcements` av misstag raderades under utveckling av kalenderfunktionen.
+*   **Byggfix:** Åtgärdat "Multiple exports" i `ScheduleView.jsx` som hindrade produktion-bygge.
+
+---
+
 ## [2026-01-30] - "Stabilitet & Skalbarhet (IndexedDB & Globala Filter)"
 
 En genomgripande arkitektonisk uppdatering som gör appen redo för stora mängder data och ger användaren kontroll över vad som visas.

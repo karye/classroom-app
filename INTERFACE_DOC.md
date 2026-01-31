@@ -4,46 +4,63 @@ Detta dokument beskriver design och interaktion i "Classroom Matrix Dashboard".
 
 ## 1. Gränssnittsöversikt
 
-Applikationen har en konsekvent layout med två huvuddelar:
-1.  **Toppmeny (Global):**
-    *   Navigering mellan vyer (Matrix, Stream, Todo).
-    *   Kursväljare.
-    *   **Smart Uppdatering:** En uppdateringsknapp som anpassar sig. Har du valt en kurs uppdateras bara den. Har du valt "Alla" uppdateras hela systemet.
-2.  **Verktygsrad (Kontextuell):**
-    *   En enhetlig rad under menyn som innehåller vy-specifika filter, sökfält och exportknappar.
+Applikationen har en enhetlig layout med fokus på produktivitet och överblick.
+
+### Navigering (Toppmeny)
+*   **Schema (Global):** En kalender-ikon längst till vänster. Visar ett sammanslaget veckoschema för alla kurser.
+*   **Vyer:** Knappar för att växla mellan **Matris**, **Stream** och **Todo**.
+*   **Kursväljare:** Välj specifikt klassrum. (Inaktiverad i Schema-vyn då den visar allt).
+*   **Status & Verktyg:** Uppdateringsknapp, Inställningar och Utloggning till höger.
+
+### Enhetliga Verktygsrader
+Varje vy har en konsekvent verktygsrad ("Toolbar") under menyn:
+*   **Vänster:** Sökfält ("Filtrera...") och vy-specifika filter (t.ex. "Dölj tomma", "Visa Heatmap").
+*   **Höger:** Export-knappar (Excel, Loggbok).
 
 ---
 
 ## 2. Huvudmoduler
 
-### A. Matrisen (Matrix View)
-En översikt av elevresultat.
-*   **Visuellt språk:** 
-    *   **Ljusblått:** Uppgifter du behöver rätta.
-    *   **Färgskala:** Betygsatta prov.
-    *   **Vitt/Grönt:** Färdiga uppgifter utan betyg.
-*   **Export:** Klicka "Exportera Excel" för att öppna ett förhandsgranskningsfönster där du kan kopiera datan eller ladda ner en Excel-anpassad CSV-fil.
+### A. Schema (Schedule View) **[NY]**
+En vertikal veckokalender för planering.
+*   **Tidsaxel:** 08:00 - 18:00 (Måndag - Fredag).
+*   **Globalt:** Hämtar lektioner från alla dina aktiva kurser.
+*   **Kort:** Varje lektion visas som ett färgkodat kort med Titel, Grupp och Sal.
+*   **Smart Layout:** Lektioner som krockar visas sida-vid-sida istället för att överlappa.
 
-### B. Stream & Loggbok (Stream View)
-Ett flöde för planering och historik.
-*   **Kalender:** En kompakt kalender i vänsterspalten (fast bredd) för att filtrera inlägg per datum.
-*   **Loggbok:** Klicka på "Skriv" vid ett inlägg för att öppna en Markdown-editor för privata anteckningar.
-*   **Export:** Exportera hela loggboken till en Markdown-fil via förhandsgranskningsfönstret.
+### B. Matrisen (Matrix View)
+En heatmap över elevresultat.
+*   **Kompakt Design:** Använder ikoner i rutnätet för att spara plats.
+*   **Färgkodning:**
+    *   **Ljusblå bakgrund:** Inlämnad uppgift (Action krävs).
+    *   **Grön/Gul/Röd (Siffror):** Betygsatta prov (Heatmap baserat på %).
+*   **Elevöversikt:** Klicka på en elev för att se en detaljerad lista med status-piller ("Badges").
 
-### C. Todo (Att Göra)
+### C. Stream & Loggbok (Stream View)
+Ett sökbart flöde för historik.
+*   **Sök:** Filtrera inlägg direkt på textinnehåll via verktygsraden.
+*   **Kalender:** Filtrera på datum via sidomenyn.
+*   **Loggbok:** Skriv privata anteckningar till varje inlägg.
+*   **Offline-stöd:** Visar cachad data om nätverket ligger nere.
+
+### D. Todo (Att Göra)
 Din inkorg för rättning.
-*   **Sidomeny:** Lista över alla uppgifter, grupperade per ämne. 
-    *   Visar (0) om allt är klart.
-*   **Huvudvy:** När du väljer en uppgift visas tre tydliga tabeller:
-    1.  **Att rätta:** (Röd/Blå markering).
-    2.  **Klara:** (Grön markering).
-    3.  **Ej inlämnade:** (Grå).
-*   **Filter:** Checkboxen "Dölj utan inlämningar" i verktygsraden filtrerar bort uppgifter där ingen har lämnat in något nytt, så du kan fokusera på det som är relevant.
+*   **Sök:** Hitta specifika uppgifter snabbt.
+*   **Filter:** "Dölj utan inlämningar" låter dig fokusera på det som är aktuellt.
+*   **Status:** Tydliga piller visar om en elev är "Inlämnad", "Klar" eller "Sen".
 
 ---
 
-## 3. Modaler & Förhandsgranskning
+## 3. Designsystem
 
-Applikationen använder enhetliga modalfönster för viktiga interaktioner:
-*   **Elevöversikt:** Klicka på en elev i Matrisen för att se en detaljerad, utskriftsvänlig sammanställning.
-*   **Export:** Alla exporter visas först i ett fönster. Här ser du exakt vad som sparas. Du kan välja att **Kopiera text** till urklipp (t.ex. för att klistra in i ett mail) eller **Ladda ner fil**.
+### Status-piller (StatusBadge)
+En gemensam komponent används överallt för att visa status:
+*   🟢 **Inlämnad:** Grön bakgrund/text + bock.
+*   🔵 **Klar:** Blå bakgrund/text + dubbelbock.
+*   ⚪ **Ej inlämnad:** Grå bakgrund/text + streck.
+*   🔴 **Sen:** Röd tilläggs-badge.
+
+### Felhantering & Offline
+Appen är byggd med "Offline-First"-tänk:
+*   **Cache:** All data sparas lokalt (IndexedDB).
+*   **Robusthet:** Om en uppdatering misslyckas (404/Nätverk) behålls den gamla datan på skärmen istället för att visa ett felmeddelande.

@@ -69,13 +69,14 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     }, [refreshTrigger]);
 
     const fetchTodos = async (isBackground = false) => {
-        setLocalLoading(true);
-        setError(null);
+        setLocalLoading(true, isBackground);
+        // Don't clear error immediately if we have data
         try {
             const res = await axios.get('/api/todos');
             const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
             setData(res.data);
+            setError(null);
             
             await dbSet('todo_cache_data', res.data);
             await dbSet('todo_cache_timestamp', now);
@@ -83,7 +84,11 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
             if (onUpdate) onUpdate(now);
         } catch (err) {
             console.error("Failed to fetch todos", err);
-            setError("Kunde inte hämta att-göra-listan.");
+            if (data.length === 0) {
+                setError("Kunde inte hämta att-göra-listan. Kontrollera anslutningen.");
+            } else {
+                console.warn("Using cached todo data due to fetch error.");
+            }
         } finally {
             setLocalLoading(false, isBackground);
         }

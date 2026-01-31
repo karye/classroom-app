@@ -91,6 +91,10 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
             });
         } catch (err) {
             console.error("Failed to fetch matrix details", err);
+            // Offline/Error handling: Keep existing details if available
+            if (!details) {
+                // Could set an error state here if desired, but for now we just stop loading
+            }
         } finally {
             setLocalLoading(false);
         }

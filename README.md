@@ -1,36 +1,41 @@
 # Google Classroom Matrix Dashboard
 
-En fullstack webbapplikation för lärare att visualisera och följa elevers framsteg i Google Classroom. Appen presenterar data i en överskådlig matris (Heatmap) och erbjuder effektiva verktyg för rättning och loggföring.
+En fullstack webbapplikation för lärare att visualisera, planera och följa elevers framsteg i Google Classroom. Appen samlar data från Classroom och Kalender i en överskådlig matris, en global "att-göra"-lista och ett veckoschema.
 
 ## 🚀 Huvudfunktioner
 
-*   **Matrisvy (Heatmap):** 
-    *   Samlad vy av alla elevers resultat med färgkodning baserad på prestation.
-    *   **Visuell Hierarki:** Tydlig skillnad mellan betygsatta prov (färgskala) och inlämningsuppgifter (ikoner).
-    *   **Action-fokus:** Ljusblå markering visar omedelbart var din insats (rättning) behövs.
-*   **Stream & Loggbok:**
-    *   Läs flödet (Announcements) med en stabil, icke-hoppande kalendernavigering.
-    *   **Privat Loggbok:** Skriv krypterade lektionsanteckningar (Markdown) kopplade till inlägg.
-*   **Todo (Att Göra):**
-    *   Global lista ("Inbox Zero") över inlämningar som väntar på rättning.
-    *   **Smart Uppdatering:** Uppdatera hela inkorgen eller enbart det aktiva klassrummet för snabbare respons.
-    *   **Filter:** Dölj uppgifter som saknar inlämningar för att fokusera på det väsentliga.
-*   **Säker Export:** 
-    *   Förhandsgranska all data (CSV/Excel för betyg, Markdown för loggbok) i ett modal-fönster innan nedladdning.
-    *   Excel-kompatibel export (med BOM och semikolon-separator).
-*   **Prestanda:** 
-    *   **Smart API-hantering:** Inbyggd "trafikpolis" (Rate Limiting) som förhindrar att Googles API-kvoter överskrids, även vid stora datamängder.
-    *   **IndexedDB:** Blixtsnabb laddning av cachad data.
+### 📊 Matrisvy (Heatmap)
+*   **Totalöversikt:** Se alla elevers resultat i en färgkodad matris.
+*   **Visuell Hierarki:** Tydlig skillnad mellan prov (färgskala baserat på resultat) och inlämningsuppgifter (ikoner).
+*   **Action-fokus:** Ljusblå markering visar omedelbart var din insats (rättning) behövs.
+*   **Export:** Exportera betyg och status till Excel-kompatibel CSV.
+
+### 📅 Schema & Planering (NY!)
+*   **Veckovy:** Ett globalt schema som visar lektioner från *alla* dina aktiva kurser samtidigt.
+*   **Smart Kalender-synk:** Hämtar händelser både från Classrooms kalendrar och din primära kalender (filtrerat på kurskoder).
+*   **Krockhantering:** Visar överlappande lektioner snyggt sida-vid-sida.
+*   **Tydlig Info:** Färgkodade kort visar kurs, grupp, tid och sal direkt.
+
+### 📝 Stream & Loggbok
+*   **Kursflöde:** Läs inlägg och material med smidig kalendernavigering.
+*   **Sökbart:** Filtrera inlägg snabbt på textinnehåll.
+*   **Privat Loggbok:** Skriv krypterade lektionsanteckningar kopplade till inlägg.
+*   **Offline-stöd:** Cachad data visas även om nätverket svajar.
+
+### ✅ Todo (Att Göra)
+*   **Inbox Zero:** Global lista över inlämningar som väntar på rättning.
+*   **Filter:** Sök på uppgifter eller dölj de som saknar inlämningar.
+*   **Status-piller:** Enhetlig visualisering av status (Inlämnad, Klar, Sen) genom hela appen.
 
 ## 🛠 Teknikstack
 
-*   **Frontend:** React (Vite), Bootstrap 5, IndexedDB.
-*   **Backend:** Node.js, Express, Google APIs, **SQLite** (krypterad lagring).
+*   **Frontend:** React (Vite), Bootstrap 5, IndexedDB (lokal cache).
+*   **Backend:** Node.js, Express, Google APIs (Classroom & Calendar), **SQLite** (krypterad lagring).
 *   **Infrastruktur:** Docker & Docker Compose.
 
 ## ⚙️ Förberedelser (Google Cloud)
 
-1.  Aktivera **Google Classroom API**.
+1.  Aktivera **Google Classroom API** och **Google Calendar API**.
 2.  Skapa ett **OAuth 2.0 Client ID** (Web application).
 3.  Konfigurera **Authorized JavaScript origins**: `http://localhost:8080`
 4.  Konfigurera **Authorized redirect URIs**: `http://localhost:8080/auth/google/callback`
@@ -51,16 +56,15 @@ En fullstack webbapplikation för lärare att visualisera och följa elevers fra
 
 ## 📁 Projektstruktur
 
-Projektet är modulärt uppbyggt för enklare underhåll:
-
 ```
 .
-├── backend/             # Node.js API, SQLite & Rate Limiting
+├── backend/             # Node.js API, SQLite, Rate Limiting & Calendar Sync
 └── frontend/            # React App
     ├── src/components/  
-    │   ├── common/      # Återanvändbara (Toolbar, Modals, Spinners)
+    │   ├── common/      # Återanvändbara (StatusBadge, Toolbar, Modals)
     │   ├── matrix/      # Matris-specifika komponenter
     │   ├── stream/      # Stream & Kalender-komponenter
-    │   └── todo/        # Todo-listans komponenter
-    └── src/App.jsx      # Huvudlayout & Routing
+    │   ├── todo/        # Todo-listans komponenter
+    │   └── ScheduleView # Globalt schema
+    └── src/App.jsx      # Huvudlayout, Routing & State
 ```

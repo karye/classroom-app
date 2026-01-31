@@ -70,7 +70,8 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
     const fetchStreamData = async (id, force = false) => {
         if (!id) return;
         if (force) setLocalLoading(true);
-        setError(null);
+        // Don't clear error immediately to avoid flicker if we have data
+        
         try {
             const [annRes, notesRes] = await Promise.all([
                 axios.get(`/api/courses/${id}/announcements`),
@@ -78,6 +79,7 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
             ]);
             setAnnouncements(annRes.data);
             setNotes(notesRes.data);
+            setError(null); // Clear error on success
             
             const now = Date.now();
             if (onUpdate) onUpdate(new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -88,7 +90,14 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
             });
         } catch (err) {
             console.error("Failed to fetch stream data", err);
-            setError("Kunde inte hämta inlägg.");
+            // Only show full error screen if we have absolutely no data to show
+            if (announcements.length === 0) {
+                setError("Kunde inte hämta inlägg. Kontrollera din anslutning eller logga in på nytt.");
+            } else {
+                // If we have data, keep showing it but maybe log/toast the error (optional)
+                // For now, we suppress the blocking error state to allow offline work
+                console.warn("Using cached data due to fetch error.");
+            }
         } finally {
             if (force) setLocalLoading(false);
         }

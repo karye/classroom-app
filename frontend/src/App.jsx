@@ -3,6 +3,7 @@ import axios from 'axios'
 import StreamView from './components/StreamView'
 import TodoView from './components/TodoView'
 import MatrixView from './components/MatrixView'
+import ScheduleView from './components/ScheduleView'
 import { dbClear } from './db'
 import './App.css'
 
@@ -52,7 +53,7 @@ function App() {
   };
 
   // Refresh triggers to talk to child components
-  const [refreshTriggers, setRefreshTriggers] = useState({ matrix: 0, stream: 0, todo: 0 });
+  const [refreshTriggers, setRefreshTriggers] = useState({ matrix: 0, stream: 0, todo: 0, schedule: 0 });
 
   axios.defaults.withCredentials = true;
 
@@ -87,10 +88,17 @@ function App() {
       setCourses(res.data);
       
       const savedCourseId = localStorage.getItem('lastSelectedCourseId');
-      if (savedCourseId && res.data.find(c => c.id === savedCourseId)) {
+      
+      // Validate saved ID
+      const isValidId = savedCourseId && res.data.some(c => c.id === savedCourseId);
+      
+      if (isValidId) {
           setSelectedCourseId(savedCourseId);
-      } else if (res.data.length > 0 && !selectedCourseId) {
+      } else if (res.data.length > 0) {
+          // If saved ID is invalid/missing, select the first valid course
           handleCourseChange(res.data[0].id);
+      } else {
+          handleCourseChange('');
       }
     } catch (err) {
       console.error("Failed to fetch courses", err);
@@ -142,6 +150,10 @@ function App() {
             <header className="bg-light border-bottom px-4 py-2 d-flex justify-content-between align-items-center shadow-sm z-10" style={{ minHeight: '60px' }}>
                 <div className="d-flex align-items-center gap-3">
                     <div className="d-flex align-items-center gap-2">
+                         <button className={`btn btn-sm ${currentView === 'schedule' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => { setCurrentView('schedule'); setSelectedCourseId(''); }} title="Schema & Planering (Alla kurser)">
+                             <i className="bi bi-calendar-week fs-5"></i>
+                         </button>
+                         <div className="vr mx-2"></div>
                          <button className={`btn btn-sm ${currentView === 'matrix' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => setCurrentView('matrix')} title="Matrisvy">
                              <i className="bi bi-grid-3x3-gap-fill fs-5"></i>
                          </button>
@@ -154,7 +166,7 @@ function App() {
                     </div>
                     <div className="vr mx-2"></div>
                     
-                    <select className="form-select form-select-sm fw-bold border-primary" style={{ maxWidth: '300px' }} value={selectedCourseId} onChange={(e) => handleCourseChange(e.target.value)}>
+                    <select className="form-select form-select-sm fw-bold border-primary" style={{ maxWidth: '300px', opacity: currentView === 'schedule' ? 0.5 : 1 }} value={selectedCourseId} onChange={(e) => handleCourseChange(e.target.value)} disabled={currentView === 'schedule'}>
                         <option value="">Alla klassrum (Todo)</option>
                         {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
@@ -187,6 +199,12 @@ function App() {
                         onLoading={setViewLoading}
                         excludeFilters={excludeFilters}
                         excludeTopicFilters={excludeTopicFilters}
+                    />
+                ) : currentView === 'schedule' ? (
+                    <ScheduleView 
+                        refreshTrigger={refreshTriggers.schedule || 0}
+                        onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} // Use generic key
+                        onLoading={setViewLoading}
                     />
                 ) : currentView === 'stream' ? (
                     selectedCourseId ? (
