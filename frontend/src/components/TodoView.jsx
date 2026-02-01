@@ -133,12 +133,12 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
 
     // --- DATA PROCESSING ---
     
-    const filteredData = selectedCourseId 
+    const filteredData = React.useMemo(() => selectedCourseId 
         ? data.filter(c => c.courseId === selectedCourseId) 
-        : data;
+        : data, [data, selectedCourseId]);
 
     // 1. Extract all unique assignments
-    const allAssignments = filteredData.flatMap(course => {
+    const allAssignments = React.useMemo(() => filteredData.flatMap(course => {
         const groups = {};
         course.todos.forEach(todo => {
             // Apply exclude filters (Assignment & Topic)
@@ -177,10 +177,10 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
             }
         });
         return Object.values(groups);
-    });
+    }), [filteredData, excludeFilters, excludeTopicFilters]);
 
     // 2. Filter and Sort
-    const sortedAssignments = allAssignments
+    const sortedAssignments = React.useMemo(() => allAssignments
         .filter(a => {
             if (hideEmptyAssignments && a.pending.length === 0) return false;
             if (filterText && !a.title.toLowerCase().includes(filterText.toLowerCase())) return false;
@@ -191,32 +191,34 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
             if (sortType === 'date-desc') return (b.latestUpdate || 0) - (a.latestUpdate || 0);
             if (sortType === 'date-asc') return (a.latestUpdate || 0) - (b.latestUpdate || 0);
             return 0;
-        });
+        }), [allAssignments, hideEmptyAssignments, filterText, sortType]);
 
     // 3. Group sorted assignments into topics
-    const topicGroups = [];
-    const topicsMap = {};
+    const { topicGroups, visibleAssignments } = React.useMemo(() => {
+        const groups = [];
+        const topicsMap = {};
 
-    sortedAssignments.forEach(assign => {
-        const tKey = `${assign.courseId}-${assign.topicId}`;
-        if (!topicsMap[tKey]) {
-            topicsMap[tKey] = {
-                id: tKey,
-                name: assign.topicName,
-                courseName: assign.courseName,
-                assignments: []
-            };
-            topicGroups.push(topicsMap[tKey]);
-        }
-        topicsMap[tKey].assignments.push(assign);
-    });
+        sortedAssignments.forEach(assign => {
+            const tKey = `${assign.courseId}-${assign.topicId}`;
+            if (!topicsMap[tKey]) {
+                topicsMap[tKey] = {
+                    id: tKey,
+                    name: assign.topicName,
+                    courseName: assign.courseName,
+                    assignments: []
+                };
+                groups.push(topicsMap[tKey]);
+            }
+            topicsMap[tKey].assignments.push(assign);
+        });
 
-    const selectedGroup = selectedWorkKey 
+        const flatList = groups.flatMap(t => t.assignments);
+        return { topicGroups: groups, visibleAssignments: flatList };
+    }, [sortedAssignments]);
+
+    const selectedGroup = React.useMemo(() => selectedWorkKey 
         ? sortedAssignments.find(g => `${g.courseId}-${g.id}` === selectedWorkKey)
-        : null;
-
-    // 4. Flat list for keyboard navigation
-    const visibleAssignments = topicGroups.flatMap(t => t.assignments);
+        : null, [selectedWorkKey, sortedAssignments]);
 
     // --- HOOKS ---
 

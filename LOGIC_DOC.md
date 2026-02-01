@@ -59,3 +59,34 @@ För att undvika "Quota Exceeded":
 
 *   **Kryptering:** Loggboksanteckningar krypteras med AES-256-CBC innan de sparas i SQLite-databasen.
 *   **Auth:** OAuth 2.0 används för all kommunikation med Google. Token sparas i en krypterad session-cookie.
+
+---
+
+## 5. Användarinställningar & Filtrering
+
+Systemet erbjuder granulär kontroll över vilken data som visas genom persistenta inställningar.
+
+### Kursfiltrering (Globalt)
+*   **Modell:** En lista med `hiddenCourseIds` sparas i användarens inställningar (SQLite).
+*   **Implementering:**
+    *   **Frontend:** Applikationen filtrerar bort kurser vars ID finns i denna lista *innan* de renderas i menyer eller skickas till vyer.
+    *   **Dashboard:** "Top-5 Att Rätta" i schemat kontrollerar varje uppgift mot listan av synliga kurser för att säkerställa att dolda kurser inte genererar notiser.
+*   **Syfte:** Låter lärare dölja arkiverade eller irrelevanta kurser utan att ta bort dem från Google Classroom.
+
+### Innehållsfilter (Lokalt)
+*   **Nyckelord:** Användaren kan definiera ord som exkluderar specifika uppgifter eller ämnen.
+*   **Logic:** Frontend-komponenterna (Todo, Matrix) itererar över all data och hoppar över objekt som matchar filtren innan rendering.
+
+---
+
+## 6. Prestanda & UX
+
+### Vyminne (View Memory)
+*   **Logik:** Applikationen sparar det senast aktiva `courseId` separat för varje vy (`matrix`, `stream`) i `localStorage`.
+*   **Beteende:** När användaren byter vy återställs det senaste valet. Om inget val finns (t.ex. vid första besök eller om kursen dolts), väljs automatiskt den första synliga kursen i listan.
+
+### Memoization
+*   **Optimering:** Tunga beräkningar i Todo-vyn (sortering, gruppering av hundratals uppgifter) och kursfiltrering i huvudappen är inslagna i `React.useMemo`.
+*   **Resultat:** Eliminerar "frysningar" av gränssnittet vid navigering och förhindrar onödiga omladdningar av komponenter.
+
+

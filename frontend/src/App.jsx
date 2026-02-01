@@ -9,33 +9,47 @@ import './App.css'
 
 function App() {
   const [courses, setCourses] = useState([])
-  const [selectedCourseId, setSelectedCourseId] = useState(localStorage.getItem('lastSelectedCourseId') || '')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState({}) 
-  const [currentView, setCurrentView] = useState(localStorage.getItem('lastSelectedView') || 'matrix'); // 'matrix' | 'stream' | 'todo'
+  const [currentView, setCurrentView] = useState(localStorage.getItem('lastSelectedView') || 'matrix'); // 'matrix' | 'stream' | 'todo' | 'schedule'
   const [viewLoading, setViewLoading] = useState(false);
+
+  // Per-view course selection memory
+  const [viewCourseIds, setViewCourseIds] = useState(() => {
+    try {
+        const saved = localStorage.getItem('viewCourseIds');
+        return saved ? JSON.parse(saved) : { matrix: '', stream: '', todo: '' };
+    } catch (e) {
+        return { matrix: '', stream: '', todo: '' };
+    }
+  });
+
+  const selectedCourseId = viewCourseIds[currentView] || '';
   
   // Settings State
   const [showSettings, setShowSettings] = useState(false);
   const [excludeFilters, setExcludeFilters] = useState([]);
   const [excludeTopicFilters, setExcludeTopicFilters] = useState([]);
+  const [hiddenCourseIds, setHiddenCourseIds] = useState([]);
 
   const fetchSettings = async () => {
       try {
           const res = await axios.get('/api/settings');
           if (res.data.excludeFilters) setExcludeFilters(res.data.excludeFilters);
           if (res.data.excludeTopicFilters) setExcludeTopicFilters(res.data.excludeTopicFilters);
+          if (res.data.hiddenCourseIds) setHiddenCourseIds(res.data.hiddenCourseIds);
       } catch (err) {
           console.error("Failed to fetch settings", err);
       }
   };
 
-  const saveSettings = async (assignments, topics) => {
+  const saveSettings = async (assignments, topics, hiddenCourses) => {
       try {
           await axios.post('/api/settings', { 
               excludeFilters: assignments, 
-              excludeTopicFilters: topics 
+              excludeTopicFilters: topics,
+              hiddenCourseIds: hiddenCourses
           });
       } catch (err) {
           console.error("Failed to save settings", err);
@@ -44,12 +58,24 @@ function App() {
 
   const handleUpdateFilters = (newFilters) => {
       setExcludeFilters(newFilters);
-      saveSettings(newFilters, excludeTopicFilters);
+      saveSettings(newFilters, excludeTopicFilters, hiddenCourseIds);
   };
 
   const handleUpdateTopicFilters = (newFilters) => {
       setExcludeTopicFilters(newFilters);
-      saveSettings(excludeFilters, newFilters);
+      saveSettings(excludeFilters, newFilters, hiddenCourseIds);
+  };
+
+  const handleToggleCourse = (courseId) => {
+      const isHidden = hiddenCourseIds.includes(courseId);
+      let newHidden;
+      if (isHidden) {
+          newHidden = hiddenCourseIds.filter(id => id !== courseId);
+      } else {
+          newHidden = [...hiddenCourseIds, courseId];
+      }
+      setHiddenCourseIds(newHidden);
+      saveSettings(excludeFilters, excludeTopicFilters, newHidden);
   };
 
   // Refresh triggers to talk to child components
@@ -59,7 +85,15 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('lastSelectedView', currentView);
-  }, [currentView]);
+    // When switching view, if that view has no course selected yet, pick the first visible one
+    const visibleCourses = courses.filter(c => !hiddenCourseIds.includes(c.id));
+    if (currentView !== 'schedule' && !viewCourseIds[currentView] && visibleCourses.length > 0) {
+        // We only auto-select for matrix/stream. Todo can stay as 'All' (empty string).
+        if (currentView === 'matrix' || currentView === 'stream') {
+            handleCourseChange(visibleCourses[0].id, currentView);
+        }
+    }
+  }, [currentView, courses, hiddenCourseIds]);
 
   useEffect(() => {
     checkLoginStatus();
@@ -86,30 +120,19 @@ function App() {
     try {
       const res = await axios.get('/api/courses');
       setCourses(res.data);
-      
-      const savedCourseId = localStorage.getItem('lastSelectedCourseId');
-      
-      // Validate saved ID
-      const isValidId = savedCourseId && res.data.some(c => c.id === savedCourseId);
-      
-      if (isValidId) {
-          setSelectedCourseId(savedCourseId);
-      } else if (res.data.length > 0) {
-          // If saved ID is invalid/missing, select the first valid course
-          handleCourseChange(res.data[0].id);
-      } else {
-          handleCourseChange('');
-      }
     } catch (err) {
       console.error("Failed to fetch courses", err);
     }
   }
 
-  const handleCourseChange = (courseId) => {
-      setSelectedCourseId(courseId);
-      localStorage.setItem('lastSelectedCourseId', courseId);
-      if (!courseId) {
-          setCurrentView('todo');
+  const handleCourseChange = (courseId, view = currentView) => {
+      const nextViewCourseIds = { ...viewCourseIds, [view]: courseId };
+      setViewCourseIds(nextViewCourseIds);
+      localStorage.setItem('viewCourseIds', JSON.stringify(nextViewCourseIds));
+      
+      if (!courseId && view !== 'todo') {
+          // If clearing course in a view that requires it, fallback or stay as is? 
+          // For now, if user clears it in matrix/stream, let it be empty (shows message).
       }
   }
 
@@ -125,13 +148,14 @@ function App() {
       } catch (err) { console.error("Logout failed", err); }
   }
 
+  const visibleCourses = React.useMemo(() => courses.filter(c => !hiddenCourseIds.includes(c.id)), [courses, hiddenCourseIds]);
+  const currentCourse = courses.find(c => c.id === selectedCourseId);
+
   if (loading) return (
       <div className="d-flex justify-content-center align-items-center vh-100">
           <div className="spinner-border text-primary" role="status"><span className="visually-hidden">Laddar...</span></div>
       </div>
   );
-
-  const currentCourse = courses.find(c => c.id === selectedCourseId);
   
   return (
     <div className="d-flex flex-column vh-100 overflow-hidden bg-light">
@@ -150,7 +174,7 @@ function App() {
             <header className="bg-light border-bottom px-4 py-2 d-flex justify-content-between align-items-center shadow-sm z-10" style={{ minHeight: '60px' }}>
                 <div className="d-flex align-items-center gap-3">
                     <div className="d-flex align-items-center gap-2">
-                         <button className={`btn btn-sm ${currentView === 'schedule' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => { setCurrentView('schedule'); setSelectedCourseId(''); }} title="Schema & Planering (Alla kurser)">
+                         <button className={`btn btn-sm ${currentView === 'schedule' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => { setCurrentView('schedule'); handleCourseChange('', 'schedule'); }} title="Schema & Planering (Alla kurser)">
                              <i className="bi bi-calendar-week fs-5"></i>
                          </button>
                          <div className="vr mx-2"></div>
@@ -168,7 +192,7 @@ function App() {
                     
                     <select className="form-select form-select-sm fw-bold border-primary" style={{ maxWidth: '300px', opacity: currentView === 'schedule' ? 0.5 : 1 }} value={selectedCourseId} onChange={(e) => handleCourseChange(e.target.value)} disabled={currentView === 'schedule'}>
                         <option value="">Alla klassrum (Todo)</option>
-                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {visibleCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                     {currentCourse && <a href={currentCourse.alternateLink} target="_blank" rel="noreferrer" className="btn btn-link btn-sm text-decoration-none" title="Öppna i Classroom"><i className="bi bi-box-arrow-up-right"></i></a>}
                 </div>
@@ -202,6 +226,7 @@ function App() {
                     />
                 ) : currentView === 'schedule' ? (
                     <ScheduleView 
+                        courses={visibleCourses}
                         refreshTrigger={refreshTriggers.schedule || 0}
                         onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} // Use generic key
                         onLoading={setViewLoading}
@@ -248,6 +273,29 @@ function App() {
                             </div>
                             <div className="modal-body p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                                 
+                                {/* COURSE FILTER */}
+                                <div className="mb-5">
+                                    <label className="form-label fw-bold mb-1">Dina klassrum</label>
+                                    <p className="small text-muted mb-3">Välj vilka klassrum du vill se i appen. (Avmarkera för att dölja gamla kurser).</p>
+                                    <div className="border rounded p-3 bg-white" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                        {courses.length > 0 ? courses.map(course => (
+                                            <div key={course.id} className="form-check mb-2">
+                                                <input 
+                                                    className="form-check-input" 
+                                                    type="checkbox" 
+                                                    id={`course-${course.id}`}
+                                                    checked={!hiddenCourseIds.includes(course.id)}
+                                                    onChange={() => handleToggleCourse(course.id)}
+                                                />
+                                                <label className="form-check-label d-flex align-items-center gap-2" htmlFor={`course-${course.id}`}>
+                                                    <span className="fw-medium">{course.name}</span>
+                                                    {course.section && <span className="badge bg-light text-muted border">{course.section}</span>}
+                                                </label>
+                                            </div>
+                                        )) : <div className="text-muted small">Inga kurser hittades.</div>}
+                                    </div>
+                                </div>
+
                                 {/* ASSIGNMENT FILTER */}
                                 <div className="mb-5">
                                     <label className="form-label fw-bold mb-1">Dölj uppgifter</label>

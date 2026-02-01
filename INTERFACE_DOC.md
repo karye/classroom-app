@@ -8,7 +8,7 @@ Applikationen har en enhetlig layout med fokus på produktivitet och överblick.
 
 ### Navigering (Toppmeny)
 *   **Schema (Global):** En kalender-ikon längst till vänster. Visar ett sammanslaget veckoschema för alla kurser.
-*   **Vyer:** Knappar för att växla mellan **Matris**, **Stream** och **Todo**.
+*   **Vyer:** Knappar för att växla mellan **Matris**, **Stream** och **Todo**. Appen minns ditt senast valda klassrum unikt för varje vy.
 *   **Kursväljare:** Välj specifikt klassrum. (Inaktiverad i Schema-vyn då den visar allt).
 *   **Status & Verktyg:** Uppdateringsknapp, Inställningar och Utloggning till höger.
 
@@ -21,12 +21,12 @@ Varje vy har en konsekvent verktygsrad ("Toolbar") under menyn:
 
 ## 2. Huvudmoduler
 
-### A. Schema (Schedule View) **[NY]**
-En vertikal veckokalender för planering.
-*   **Tidsaxel:** 08:00 - 18:00 (Måndag - Fredag).
-*   **Globalt:** Hämtar lektioner från alla dina aktiva kurser.
-*   **Kort:** Varje lektion visas som ett färgkodat kort med Titel, Grupp och Sal.
-*   **Smart Layout:** Lektioner som krockar visas sida-vid-sida istället för att överlappa.
+### A. Schema (Schedule View) **[UPPDATERAD]**
+En vertikal veckokalender för planering med integrerad dashboard.
+*   **Kalender:** Visar lektioner 08:00 - 18:00 (Mån-Fre) med smart krockhantering.
+*   **Dashboard (Sidopanel):**
+    *   **Att Rätta (Topp 5):** En lista till höger som visar de 5 senaste inlämningarna som kräver åtgärd.
+    *   Ger en snabb överblick över "brinnande" uppgifter direkt i planeringsvyn.
 
 ### B. Matrisen (Matrix View)
 En heatmap över elevresultat.
@@ -51,7 +51,22 @@ Din inkorg för rättning.
 
 ---
 
-## 3. Designsystem
+## 3. Inställningar & Anpassning
+
+Via kugghjulsikonen i toppmenyn når du globala inställningar som påverkar hela appen.
+
+### Kursurval ("Dina klassrum")
+*   **Filtrera Kurser:** En lista med checkboxar låter dig välja exakt vilka klassrum som ska synas.
+*   **Dölj gamla:** Avmarkera kurser du inte längre undervisar i för att rensa upp i menyer och listor.
+*   **Global Effekt:** Detta filter påverkar kursväljaren, matrisvyn, todos och dashboarden.
+
+### Innehållsfilter
+*   **Dölj uppgifter:** Filtrera bort specifika uppgifter baserat på nyckelord i titeln (t.ex. "Lunch").
+*   **Dölj ämnen:** Filtrera bort hela ämnesområden (Topics) för att minska brus.
+
+---
+
+## 4. Designsystem
 
 ### Status-piller (StatusBadge)
 En gemensam komponent används överallt för att visa status:

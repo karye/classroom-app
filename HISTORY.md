@@ -2,6 +2,38 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
+## [2026-02-01] - "Dashboard & Kursfiltrering"
+
+Fokus för dagen var att ge läraren bättre kontroll över vilka kurser som visas och en snabb överblick över vad som är viktigast just nu.
+
+### 🚀 Nytt & Tillagt
+*   **Dashboard i Schema-vyn:**
+    *   Lagt till en sidopanel ("Dashboard") till höger om kalendern.
+    *   **Top-5 Att Rätta:** Visar automatiskt de 5 senaste inlämningarna som väntar på bedömning (status `TURNED_IN`), sorterat på datum.
+    *   Ger en direkt överblick över arbetsbördan utan att behöva byta vy.
+*   **Kursfiltrering (Inställningar):**
+    *   Ny sektion "Dina klassrum" i inställningsfönstret.
+    *   Möjlighet att dölja specifika kurser (t.ex. gamla eller irrelevanta klassrum) via checkboxar.
+    *   Valet sparas persistent på servern och påverkar hela applikationen (menyer, matriser, todos).
+*   **Smart Dashboard:**
+    *   Listan "Att rätta" respekterar nu de dolda kurserna, så du ser bara uppgifter från de klassrum du är aktiv i.
+
+### 🔧 Backend & Arkitektur
+*   **Utökad Inställningsmodell:** Uppdaterat `Settings`-modellen i frontend för att hantera `hiddenCourseIds`.
+*   **Reaktivitet:** Schema-vyn uppdateras omedelbart när man ändrar kursurvalet i inställningarna.
+*   **Vyminne (Per View):**
+    *   Appen kommer nu ihåg det senast valda klassrummet för varje specifik vy (Matris, Stream).
+    *   Om inget val gjorts väljs automatiskt den första synliga kursen.
+*   **Prestandaoptimering:**
+    *   Todo-vyn använder nu memoization (`useMemo`) för tunga beräkningar, vilket eliminerar fördröjningen vid byte av flik.
+
+### 🐛 Buggfixar
+*   **React Hook Error:** Åtgärdat ett kritiskt renderingsfel (#310) i `App.jsx` relaterat till villkorliga hook-anrop.
+*   **Oändlig Laddning:** Fixat en bugg där uppdateringsikonen snurrade för evigt i Schema-vyn på grund av en instabil referens till kurslistan.
+*   **Schedule-knappen:** Fixat en krasch när man klickade på Schema-ikonen för att återställa kursvalet.
+
+---
+
 ## [2026-01-31] - "Global Schema-vy & UI-harmonisering"
 
 En stor uppdatering som introducerar en helt ny schemamodul och skapar ett enhetligt visuellt språk genom hela applikationen.
