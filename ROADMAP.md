@@ -28,6 +28,13 @@ Detta dokument beskriver den planerade utvecklingen för **Classroom Matrix Dash
 *   **Mål:** Tidigare upptäckt av elever som halkar efter.
 *   **Funktion:** Analysera inlämningsmönster. Varna inte bara för låga betyg, utan även för *brutna trender* (t.ex. "Eleven har inte lämnat in något på 2 veckor").
 
+### ☑️ Snabb-återlämning (Quick-Return)
+*   **Mål:** Minska antalet klick för att hantera vardagliga inlämningar.
+*   **Funktion:** Markera som "Klar" direkt i appen.
+    *   En "Check"-knapp i Todo-vyn och Matrisen för inlämnade uppgifter.
+    *   Vid klick anropas Google Classroom API för att "Returnera" uppgiften till eleven.
+    *   **Studybee-integration:** Eftersom Studybee läser från Classroom, kommer bedömningen att synas där automatiskt vid nästa synk.
+
 ---
 
 ## ✅ Avklarat & Genomfört
