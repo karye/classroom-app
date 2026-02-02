@@ -201,11 +201,12 @@ function App() {
                         {lastUpdated[currentView === 'todo' ? 'todo' : selectedCourseId] && <span>Uppdaterad {lastUpdated[currentView === 'todo' ? 'todo' : selectedCourseId]}</span>}
                     </div>
                     <button onClick={() => setRefreshTriggers(prev => ({ ...prev, [currentView]: prev[currentView] + 1 }))} 
-                        className="btn btn-outline-secondary btn-sm" 
+                        className={`btn btn-sm d-flex align-items-center gap-2 ${viewLoading ? 'btn-outline-primary' : 'btn-outline-secondary'}`}
                         title="Hämta senaste data från Google Classroom"
                         disabled={viewLoading}
                     >
-                        <i className={`bi bi-arrow-clockwise d-inline-block ${viewLoading ? 'spin' : ''}`}></i>
+                        <i className={`bi bi-arrow-clockwise ${viewLoading ? 'spin' : ''}`}></i>
+                        {viewLoading && <span className="small fw-bold">Synkar...</span>}
                     </button>
                     <button onClick={() => setShowSettings(true)} className="btn btn-light btn-sm" title="Inställningar">
                         <i className="bi bi-gear"></i>

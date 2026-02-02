@@ -10,11 +10,14 @@ Applikationen har en enhetlig layout med fokus på produktivitet och överblick.
 *   **Schema (Global):** En kalender-ikon längst till vänster. Visar ett sammanslaget veckoschema för alla kurser.
 *   **Vyer:** Knappar för att växla mellan **Matris**, **Stream** och **Todo**. Appen minns ditt senast valda klassrum unikt för varje vy.
 *   **Kursväljare:** Välj specifikt klassrum. (Inaktiverad i Schema-vyn då den visar allt).
-*   **Status & Verktyg:** Uppdateringsknapp, Inställningar och Utloggning till höger.
+*   **Status & Verktyg:** 
+    *   **Uppdateringsknapp:** Snurrar och visar "Synkar..." när data hämtas.
+    *   **Inställningar:** Hantera globala filter och kursurval.
+    *   **Utloggning:** Längst till höger.
 
 ### Enhetliga Verktygsrader
 Varje vy har en konsekvent verktygsrad ("Toolbar") under menyn:
-*   **Vänster:** Sökfält ("Filtrera...") och vy-specifika filter (t.ex. "Dölj tomma", "Visa Heatmap").
+*   **Vänster:** Sökfält ("Filtrera...") och vy-specifika filter (t.ex. "Deadline", "Visa Heatmap").
 *   **Höger:** Export-knappar (Excel, Loggbok).
 
 ---
@@ -31,6 +34,8 @@ En vertikal veckokalender för planering med integrerad dashboard.
 ### B. Matrisen (Matrix View)
 En heatmap över elevresultat.
 *   **Kompakt Design:** Använder ikoner i rutnätet för att spara plats.
+*   **Nya Filter:**
+    *   **Deadline:** En checkbox som döljer alla uppgifter som saknar slutdatum (för att fokusera på "riktiga" uppgifter).
 *   **Färgkodning:**
     *   **Ljusblå bakgrund:** Inlämnad uppgift (Action krävs).
     *   **Grön/Gul/Röd (Siffror):** Betygsatta prov (Heatmap baserat på %).
@@ -46,8 +51,11 @@ Ett sökbart flöde för historik.
 ### D. Todo (Att Göra)
 Din inkorg för rättning.
 *   **Sök:** Hitta specifika uppgifter snabbt.
-*   **Filter:** "Dölj utan inlämningar" låter dig fokusera på det som är aktuellt.
+*   **Filter:** 
+    *   **Dölj utan inlämningar:** Fokusera på det som är aktuellt att rätta.
+    *   **Dölj utan poäng:** Filtrera bort enkla uppgifter (t.ex. närvaro/enkäter) som inte har poäng.
 *   **Status:** Tydliga piller visar om en elev är "Inlämnad", "Klar" eller "Sen".
+*   **Felsökning:** Klicka på en uppgift för att se en detaljerad logg i webbläsarens konsol (F12) med status och poäng för varje elev.
 
 ---
 

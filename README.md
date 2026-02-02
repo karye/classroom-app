@@ -6,6 +6,7 @@ En fullstack webbapplikation för lärare att visualisera, planera och följa el
 
 ### 📊 Matrisvy (Heatmap)
 *   **Totalöversikt:** Se alla elevers resultat i en färgkodad matris.
+*   **Smart Filtrering:** Dölj automatiskt uppgifter som saknar deadline eller poäng.
 *   **Visuell Hierarki:** Tydlig skillnad mellan prov (färgskala baserat på resultat) och inlämningsuppgifter (ikoner).
 *   **Action-fokus:** Ljusblå markering visar omedelbart var din insats (rättning) behövs.
 *   **Export:** Exportera betyg och status till Excel-kompatibel CSV.
@@ -24,7 +25,8 @@ En fullstack webbapplikation för lärare att visualisera, planera och följa el
 
 ### ✅ Todo (Att Göra)
 *   **Inbox Zero:** Global lista över inlämningar som väntar på rättning.
-*   **Filter:** Sök på uppgifter eller dölj de som saknar inlämningar.
+*   **Filter:** Sök på uppgifter, dölj de utan inlämningar eller utan poäng.
+*   **Detaljer:** Se exakt status ("Inlämnad", "Betygsatt", "Tilldelad") och poäng för varje elev.
 *   **Status-piller:** Enhetlig visualisering av status (Inlämnad, Klar, Sen) genom hela appen.
 
 ## 🛠 Teknikstack

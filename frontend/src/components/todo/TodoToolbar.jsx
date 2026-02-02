@@ -1,6 +1,6 @@
 import React from 'react';
 
-const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmptyAssignments, filterText, setFilterText }) => {
+const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmptyAssignments, hideNoPoints, setHideNoPoints, filterText, setFilterText }) => {
     return (
         <div className="bg-white border-bottom px-4 py-1 d-flex align-items-center shadow-sm" style={{ minHeight: '45px', zIndex: 5 }}>
             <div className="d-flex align-items-center w-100 justify-content-between">
@@ -32,9 +32,15 @@ const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmpty
                     <div className="vr h-50 opacity-25"></div>
 
                     {/* Filter */}
-                    <div className="form-check form-check-inline m-0">
-                            <input className="form-check-input" type="checkbox" id="hideEmpty" checked={hideEmptyAssignments} onChange={e => setHideEmptyAssignments(e.target.checked)} />
-                            <label className="form-check-label small fw-bold" htmlFor="hideEmpty">Dölj utan inlämningar</label>
+                    <div className="d-flex align-items-center gap-3">
+                        <div className="form-check form-check-inline m-0">
+                                <input className="form-check-input" type="checkbox" id="hideEmpty" checked={hideEmptyAssignments} onChange={e => setHideEmptyAssignments(e.target.checked)} />
+                                <label className="form-check-label small fw-bold" htmlFor="hideEmpty">Dölj utan inlämningar</label>
+                        </div>
+                        <div className="form-check form-check-inline m-0">
+                                <input className="form-check-input" type="checkbox" id="hideNoPoints" checked={hideNoPoints} onChange={e => setHideNoPoints(e.target.checked)} />
+                                <label className="form-check-label small fw-bold" htmlFor="hideNoPoints">Dölj utan poäng</label>
+                        </div>
                     </div>
                 </div>
             </div>

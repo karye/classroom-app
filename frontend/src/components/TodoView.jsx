@@ -18,6 +18,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); 
     const [sortType, setSortType] = useState('date-desc'); 
     const [hideEmptyAssignments, setHideEmptyAssignments] = useState(localStorage.getItem('todo_hide_empty') === 'true');
+    const [hideNoPoints, setHideNoPoints] = useState(localStorage.getItem('todo_hide_nopoints') === 'true');
     const [filterText, setFilterText] = useState('');
 
     // Helper to check if a string matches any filter
@@ -56,6 +57,10 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     useEffect(() => {
         localStorage.setItem('todo_hide_empty', hideEmptyAssignments);
     }, [hideEmptyAssignments]);
+
+    useEffect(() => {
+        localStorage.setItem('todo_hide_nopoints', hideNoPoints);
+    }, [hideNoPoints]);
 
     // Only fetch on manual trigger
     useEffect(() => {
@@ -153,6 +158,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                     courseName: course.courseName,
                     topicId: todo.topicId || 'none',
                     topicName: todo.topicName || 'Övrigt',
+                    maxPoints: todo.maxPoints,
                     studentCount: course.studentCount,
                     latestUpdate: 0,
                     pending: [],
@@ -183,6 +189,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     const sortedAssignments = React.useMemo(() => allAssignments
         .filter(a => {
             if (hideEmptyAssignments && a.pending.length === 0) return false;
+            if (hideNoPoints && !a.maxPoints) return false;
             if (filterText && !a.title.toLowerCase().includes(filterText.toLowerCase())) return false;
             return true;
         })
@@ -191,7 +198,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
             if (sortType === 'date-desc') return (b.latestUpdate || 0) - (a.latestUpdate || 0);
             if (sortType === 'date-asc') return (a.latestUpdate || 0) - (b.latestUpdate || 0);
             return 0;
-        }), [allAssignments, hideEmptyAssignments, filterText, sortType]);
+        }), [allAssignments, hideEmptyAssignments, hideNoPoints, filterText, sortType]);
 
     // 3. Group sorted assignments into topics
     const { topicGroups, visibleAssignments } = React.useMemo(() => {
@@ -283,6 +290,8 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                 setSortType={setSortType} 
                 hideEmptyAssignments={hideEmptyAssignments} 
                 setHideEmptyAssignments={setHideEmptyAssignments}
+                hideNoPoints={hideNoPoints}
+                setHideNoPoints={setHideNoPoints}
                 filterText={filterText}
                 setFilterText={setFilterText}
             />

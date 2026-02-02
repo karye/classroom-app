@@ -16,6 +16,7 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
     const [showGraded, setShowGraded] = useState(false);
     const [showUngraded, setShowUngraded] = useState(true);
     const [showPending, setShowPending] = useState(false);
+    const [hideNoDeadline, setHideNoDeadline] = useState(localStorage.getItem('matrix_hide_nodeadline') === 'true');
     const [showHeatmap, setShowHeatmap] = useState(localStorage.getItem('matrix_show_heatmap') !== 'false'); // Default true
     const [sortType, setSortType] = useState('name-asc');
     const [expandedTopics, setExpandedTopics] = useState({});
@@ -41,6 +42,10 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
     useEffect(() => {
         localStorage.setItem('matrix_show_heatmap', showHeatmap);
     }, [showHeatmap]);
+
+    useEffect(() => {
+        localStorage.setItem('matrix_hide_nodeadline', hideNoDeadline);
+    }, [hideNoDeadline]);
 
     // Load from cache on mount or course change
     useEffect(() => {
@@ -291,12 +296,13 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
         const isGraded = cw.maxPoints && cw.maxPoints > 0;
         const matchesType = (isGraded && showGraded) || (!isGraded && showUngraded);
         const matchesPending = !showPending || details.submissions.some(s => s.courseWorkId === cw.id && s.state === 'TURNED_IN');
+        const matchesDeadline = !hideNoDeadline || (cw.dueDate && cw.dueDate.year);
         
         // Filter logic
         const matchesAssignmentExclude = matchesFilterList(cw.title, excludeFilters);
         const matchesTopicExclude = matchesFilterList(topicMap.get(cw.topicId), excludeTopicFilters);
         
-        return matchesText && matchesType && matchesPending && !matchesAssignmentExclude && !matchesTopicExclude;
+        return matchesText && matchesType && matchesPending && matchesDeadline && !matchesAssignmentExclude && !matchesTopicExclude;
     });
 
     const groupedWork = [];
@@ -383,6 +389,10 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
                              <div className="form-check form-check-inline m-0">
                                  <input className="form-check-input" type="checkbox" id="checkPending" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
                                  <label className="form-check-label small fw-bold text-danger" htmlFor="checkPending">Att rätta</label>
+                             </div>
+                             <div className="form-check form-check-inline m-0">
+                                 <input className="form-check-input" type="checkbox" id="checkDeadline" checked={hideNoDeadline} onChange={e => setHideNoDeadline(e.target.checked)} />
+                                 <label className="form-check-label small fw-bold" htmlFor="checkDeadline">Deadline</label>
                              </div>
                              <div className="form-check form-check-inline m-0">
                                  <input className="form-check-input" type="checkbox" id="checkHeatmap" checked={showHeatmap} onChange={e => setShowHeatmap(e.target.checked)} />

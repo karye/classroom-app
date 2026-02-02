@@ -2,7 +2,8 @@
 FROM node:20-slim AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+# Upgrade npm to latest
+RUN npm install -g npm@latest && npm install
 COPY . .
 RUN npm run build
 

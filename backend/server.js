@@ -583,14 +583,23 @@ app.get('/api/courses/:courseId/todos', checkAuth, async (req, res) => {
                 studentName: student.name.fullName,
                 studentPhoto: student.photoUrl,
                 submissionLink: sub.alternateLink,
-                updateTime: sub.updateTime,
-                late: sub.late,
-                state: sub.state,
-                assignedGrade: sub.assignedGrade
-            };
-        }).filter(Boolean);
+                                        updateTime: sub.updateTime,
+                                        late: sub.late,
+                                        state: sub.state,
+                                        assignedGrade: sub.assignedGrade,
+                                        maxPoints: work.maxPoints
+                                    };        }).filter(Boolean);
 
         console.log(`[DEBUG] Returning ${todoItems.length} processed todo items`);
+
+        // Log status for all students (Generic)
+        if (todoItems.length > 0) {
+            console.log(`\n[LOG] --- Assignment Status Report for ${course.name} ---`);
+            todoItems.forEach(item => {
+                console.log(`Task: ${item.workTitle.substring(0, 20).padEnd(20)} | Student: ${item.studentName.padEnd(20)} | State: ${item.state} | Grade: ${item.assignedGrade || '-'}`);
+            });
+            console.log('-------------------------------------------------------\n');
+        }
 
         res.json({
             courseId: course.id,
@@ -687,12 +696,12 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                         studentName: student.name.fullName,
                         studentPhoto: student.photoUrl,
                         submissionLink: sub.alternateLink,
-                        updateTime: sub.updateTime,
-                        late: sub.late,
-                        state: sub.state,
-                        assignedGrade: sub.assignedGrade
-                    };
-                }).filter(Boolean);
+                                                updateTime: sub.updateTime,
+                                                late: sub.late,
+                                                state: sub.state,
+                                                assignedGrade: sub.assignedGrade,
+                                                maxPoints: work.maxPoints
+                                            };                }).filter(Boolean);
 
                 if (todoItems.length === 0) return null;
 

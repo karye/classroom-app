@@ -2,6 +2,29 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
+## [2026-02-02] - "Utökad Filtrering & Detaljerad Insyn"
+
+En uppdatering fokuserad på att ge läraren verktyg för att filtrera bort "brus" (irrelevanta uppgifter) och få djupare insyn i bedömningsunderlag.
+
+### 🚀 Nytt & Tillagt
+*   **Smart Filtrering (Todo & Matris):**
+    *   **"Dölj utan poäng" (Todo):** Nytt filter i Att-göra-listan som döljer uppgifter som saknar maxpoäng (t.ex. enkäter eller närvaro), vilket renodlar listan till faktiska bedömningsuppgifter.
+    *   **"Deadline" (Matris):** Nytt filter i Matrisvyn som döljer uppgifter som saknar slutdatum, vilket ofta indikerar att de är extra- eller stödmaterial snarare än skarpa uppgifter.
+    *   Valen sparas i `localStorage` och minns mellan sessioner.
+*   **Detaljerad Konsol-loggning:**
+    *   Implementerat en avancerad `console.table`-vy i Todo-vyn.
+    *   Vid val av en uppgift loggas nu en komplett lista över alla elever med deras status (**Inlämnad**, **Betygsatt**, **Tilldelad**) och poäng (t.ex. "8/10") direkt i webbläsarens konsol (F12).
+    *   Ger total transparens för felsökning eller detaljgranskning.
+*   **Tydligare Synk-status:**
+    *   Uppdateringsknappen i toppmenyn visar nu texten "Synkar..." och blir blå när applikationen arbetar mot Google API, för att tydligt skilja på nätverksaktivitet och lokal filtrering.
+
+### 🔧 Backend & Arkitektur
+*   **API-utökning:** `/api/todos` och `/api/courses/:id/todos` returnerar nu `maxPoints` för varje uppgift.
+*   **Loggning:** Backend loggar nu en sammanfattning av alla hämtade uppgifter och deras status i serverloggen vid varje anrop, vilket underlättar felsökning.
+*   **DevOps:** Uppdaterat `Dockerfile` och npm-beroenden för att åtgärda säkerhetsvarningar och `deprecated`-meddelanden.
+
+---
+
 ## [2026-02-01] - "Dashboard & Kursfiltrering"
 
 Fokus för dagen var att ge läraren bättre kontroll över vilka kurser som visas och en snabb överblick över vad som är viktigast just nu.

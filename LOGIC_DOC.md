@@ -39,6 +39,11 @@ Systemet normaliserar status från Google Classroom till en intern modell:
 Använder en kompakt visning:
 *   **Ikoner:** Används i rutnätet för att spara plats.
 *   **Färg:** Cellens bakgrundsfärg styrs av status (Ljusblå = Inlämnad) eller resultat (Heatmap).
+*   **Filtrering:** Uppgifter kan filtreras bort om de saknar deadline (`dueDate`) via `hideNoDeadline`-filtret.
+
+### C. Todo (Att Göra)
+*   **Poänghantering:** API:et inkluderar nu `maxPoints` för varje uppgift. Detta används för att kunna filtrera bort "enkla" uppgifter som saknar poäng (via `hideNoPoints`-filtret).
+*   **Detaljerad Logging:** Frontend loggar detaljerad status (Inlämnad/Betygsatt/Tilldelad) och poäng (X/Y) för alla elever direkt till webbläsarkonsolen för felsökning.
 
 ---
 
@@ -71,11 +76,12 @@ Systemet erbjuder granulär kontroll över vilken data som visas genom persisten
 *   **Implementering:**
     *   **Frontend:** Applikationen filtrerar bort kurser vars ID finns i denna lista *innan* de renderas i menyer eller skickas till vyer.
     *   **Dashboard:** "Top-5 Att Rätta" i schemat kontrollerar varje uppgift mot listan av synliga kurser för att säkerställa att dolda kurser inte genererar notiser.
-*   **Syfte:** Låter lärare dölja arkiverade eller irrelevanta kurser utan att ta bort dem från Google Classroom.
 
-### Innehållsfilter (Lokalt)
-*   **Nyckelord:** Användaren kan definiera ord som exkluderar specifika uppgifter eller ämnen.
-*   **Logic:** Frontend-komponenterna (Todo, Matrix) itererar över all data och hoppar över objekt som matchar filtren innan rendering.
+### Vy-specifika Filter (LocalStorage)
+Följande filter sparas lokalt i webbläsaren för att minnas användarens val:
+*   `matrix_hide_nodeadline`: Dölj uppgifter utan deadline i matrisen.
+*   `todo_hide_nopoints`: Dölj uppgifter utan poäng i Todo-vyn.
+*   `todo_hide_empty`: Dölj uppgifter utan inlämningar.
 
 ---
 
@@ -88,5 +94,3 @@ Systemet erbjuder granulär kontroll över vilken data som visas genom persisten
 ### Memoization
 *   **Optimering:** Tunga beräkningar i Todo-vyn (sortering, gruppering av hundratals uppgifter) och kursfiltrering i huvudappen är inslagna i `React.useMemo`.
 *   **Resultat:** Eliminerar "frysningar" av gränssnittet vid navigering och förhindrar onödiga omladdningar av komponenter.
-
-
