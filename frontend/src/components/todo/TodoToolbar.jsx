@@ -1,6 +1,6 @@
 import React from 'react';
 
-const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmptyAssignments, hideNoPoints, setHideNoPoints, filterText, setFilterText }) => {
+const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmptyAssignments, assignmentFilter, setAssignmentFilter, filterText, setFilterText }) => {
     return (
         <div className="bg-white border-bottom px-4 py-1 d-flex align-items-center shadow-sm" style={{ minHeight: '45px', zIndex: 5 }}>
             <div className="d-flex align-items-center w-100 justify-content-between">
@@ -15,6 +15,23 @@ const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmpty
                             value={filterText} 
                             onChange={(e) => setFilterText(e.target.value)} 
                         />
+                    </div>
+
+                    <div className="vr h-50 opacity-25"></div>
+
+                    {/* Filter Type Dropdown */}
+                    <div className="d-flex align-items-center gap-2">
+                             <i className="bi bi-funnel text-muted"></i>
+                             <select 
+                                onChange={(e) => setAssignmentFilter(e.target.value)} 
+                                value={assignmentFilter} 
+                                className="form-select form-select-sm border-0 fw-bold text-dark bg-transparent ps-0" 
+                                style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }}
+                             >
+                                <option value="all">Visa: Allt att rätta</option>
+                                <option value="ungraded">Visa: Uppgifter (Ej prov)</option>
+                                <option value="graded">Visa: Prov & Bedömning</option>
+                             </select>
                     </div>
 
                     <div className="vr h-50 opacity-25"></div>
@@ -35,11 +52,7 @@ const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmpty
                     <div className="d-flex align-items-center gap-3">
                         <div className="form-check form-check-inline m-0">
                                 <input className="form-check-input" type="checkbox" id="hideEmpty" checked={hideEmptyAssignments} onChange={e => setHideEmptyAssignments(e.target.checked)} />
-                                <label className="form-check-label small fw-bold" htmlFor="hideEmpty">Dölj utan inlämningar</label>
-                        </div>
-                        <div className="form-check form-check-inline m-0">
-                                <input className="form-check-input" type="checkbox" id="hideNoPoints" checked={hideNoPoints} onChange={e => setHideNoPoints(e.target.checked)} />
-                                <label className="form-check-label small fw-bold" htmlFor="hideNoPoints">Dölj utan poäng</label>
+                                <label className="form-check-label small fw-bold" htmlFor="hideEmpty">Dölj tomma</label>
                         </div>
                     </div>
                 </div>

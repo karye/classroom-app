@@ -7,35 +7,36 @@ Detta dokument beskriver design och interaktion i "Classroom Matrix Dashboard".
 Applikationen har en enhetlig layout med fokus på produktivitet och överblick.
 
 ### Navigering (Toppmeny)
-*   **Schema (Global):** En kalender-ikon längst till vänster. Visar ett sammanslaget veckoschema för alla kurser.
-*   **Vyer:** Knappar för att växla mellan **Matris**, **Stream** och **Todo**. Appen minns ditt senast valda klassrum unikt för varje vy.
+*   **Vyer:** Knappar för att växla mellan **Schema**, **Matris**, **Stream**, **Todo** och **Inställningar**.
 *   **Kursväljare:** Välj specifikt klassrum. (Inaktiverad i Schema-vyn då den visar allt).
 *   **Status & Verktyg:** 
-    *   **Uppdateringsknapp:** Snurrar och visar "Synkar..." när data hämtas.
-    *   **Inställningar:** Hantera globala filter och kursurval.
+    *   **Uppdateringsknapp:** Snurrar och visar "Synkar..." när data hämtas. I Schema-vyn kräver den bekräftelse för att starta en global synk.
     *   **Utloggning:** Längst till höger.
 
 ### Enhetliga Verktygsrader
-Varje vy har en konsekvent verktygsrad ("Toolbar") under menyn:
-*   **Vänster:** Sökfält ("Filtrera...") och vy-specifika filter (t.ex. "Deadline", "Visa Heatmap").
-*   **Höger:** Export-knappar (Excel, Loggbok).
+Matris- och Todo-vyn har nu identiska verktygsrader för konsekvent filtrering:
+*   **Sök:** Fritextsökning på uppgiftstitlar.
+*   **Visningsläge (Dropdown):**
+    *   **Alla uppgifter:** Visar allt.
+    *   **Prov & Bedömning:** Visar endast poängsatta uppgifter (med Heatmap i matrisen).
+    *   **Uppgifter (Ej prov):** Visar endast opoängsatta uppgifter (bockar/status).
+*   **Vy-specifika filter:** T.ex. "Deadline" (Matris) eller "Dölj tomma" (Todo).
 
 ---
 
 ## 2. Huvudmoduler
 
-### A. Schema (Schedule View) **[UPPDATERAD]**
+### A. Schema (Schedule View)
 En vertikal veckokalender för planering med integrerad dashboard.
 *   **Kalender:** Visar lektioner 08:00 - 18:00 (Mån-Fre) med smart krockhantering.
+*   **Interaktivitet:** Klicka på en lektion för att filtrera dashboarden på just den kursen.
 *   **Dashboard (Sidopanel):**
-    *   **Att Rätta (Topp 5):** En lista till höger som visar de 5 senaste inlämningarna som kräver åtgärd.
-    *   Ger en snabb överblick över "brinnande" uppgifter direkt i planeringsvyn.
+    *   **Att Rätta:** Visar inlämningar som kräver åtgärd.
+    *   **Lägen:** Visar antingen "Topp 5" globalt (standard) eller alla för en vald kurs (vid klick i kalendern).
 
 ### B. Matrisen (Matrix View)
 En heatmap över elevresultat.
-*   **Kompakt Design:** Använder ikoner i rutnätet för att spara plats.
-*   **Nya Filter:**
-    *   **Deadline:** En checkbox som döljer alla uppgifter som saknar slutdatum (för att fokusera på "riktiga" uppgifter).
+*   **Filtrering:** Använd dropdown-menyn för att växla mellan prestationsöversikt (Prov) och aktivitetsöversikt (Uppgifter).
 *   **Färgkodning:**
     *   **Ljusblå bakgrund:** Inlämnad uppgift (Action krävs).
     *   **Grön/Gul/Röd (Siffror):** Betygsatta prov (Heatmap baserat på %).
@@ -46,35 +47,28 @@ Ett sökbart flöde för historik.
 *   **Sök:** Filtrera inlägg direkt på textinnehåll via verktygsraden.
 *   **Kalender:** Filtrera på datum via sidomenyn.
 *   **Loggbok:** Skriv privata anteckningar till varje inlägg.
-*   **Offline-stöd:** Visar cachad data om nätverket ligger nere.
 
 ### D. Todo (Att Göra)
 Din inkorg för rättning.
 *   **Sök:** Hitta specifika uppgifter snabbt.
 *   **Filter:** 
-    *   **Dölj utan inlämningar:** Fokusera på det som är aktuellt att rätta.
-    *   **Dölj utan poäng:** Filtrera bort enkla uppgifter (t.ex. närvaro/enkäter) som inte har poäng.
+    *   **Dölj tomma:** Fokusera på det som är aktuellt att rätta.
+    *   **Dropdown:** Välj om du vill se Prov eller vanliga Uppgifter.
 *   **Status:** Tydliga piller visar om en elev är "Inlämnad", "Klar" eller "Sen".
-*   **Felsökning:** Klicka på en uppgift för att se en detaljerad logg i webbläsarens konsol (F12) med status och poäng för varje elev.
+
+### E. Inställningar (Settings View)
+En dedikerad vy för konfiguration.
+*   **Flik: Anpassning:**
+    *   Hantera vilka kurser som ska visas (Dölj gamla).
+    *   Sätt globala filter för att dölja specifika uppgifter eller ämnen.
+*   **Flik: Systemdata:**
+    *   Överblick över lagringsanvändning (Cache & Databas).
+    *   Statistiktabell per kurs.
+    *   Knappar för att rensa cache vid problem.
 
 ---
 
-## 3. Inställningar & Anpassning
-
-Via kugghjulsikonen i toppmenyn når du globala inställningar som påverkar hela appen.
-
-### Kursurval ("Dina klassrum")
-*   **Filtrera Kurser:** En lista med checkboxar låter dig välja exakt vilka klassrum som ska synas.
-*   **Dölj gamla:** Avmarkera kurser du inte längre undervisar i för att rensa upp i menyer och listor.
-*   **Global Effekt:** Detta filter påverkar kursväljaren, matrisvyn, todos och dashboarden.
-
-### Innehållsfilter
-*   **Dölj uppgifter:** Filtrera bort specifika uppgifter baserat på nyckelord i titeln (t.ex. "Lunch").
-*   **Dölj ämnen:** Filtrera bort hela ämnesområden (Topics) för att minska brus.
-
----
-
-## 4. Designsystem
+## 3. Designsystem
 
 ### Status-piller (StatusBadge)
 En gemensam komponent används överallt för att visa status:

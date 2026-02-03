@@ -21,7 +21,8 @@ import LoadingSpinner from './common/LoadingSpinner';
 
 const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
     const [events, setEvents] = useState([]);
-    const [recentTodos, setRecentTodos] = useState([]);
+    const [allPendingTodos, setAllPendingTodos] = useState([]); // Store ALL pending todos
+    const [selectedCourseName, setSelectedCourseName] = useState(null); // Filter state
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [viewDate, setViewDate] = useState(new Date()); 
@@ -76,43 +77,56 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
 
     useEffect(() => {
         if (refreshTrigger > 0) {
-            fetchEvents(true);
-            fetchTodos(true);
+            refreshAllData();
         }
     }, [refreshTrigger]);
 
-    const fetchEvents = async (force = false) => {
-        if (force) setLocalLoading(true);
+    const refreshAllData = async () => {
+        setLocalLoading(true);
         setError(null);
         try {
-            const res = await axios.get(`/api/events`);
-            const now = Date.now();
-            setEvents(res.data);
+            // Run both heavy global fetches in parallel
+            await Promise.all([
+                fetchEvents(),
+                fetchTodos()
+            ]);
             
+            const now = Date.now();
             if (onUpdate) onUpdate(new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        } catch (err) {
+            console.error("Global refresh failed", err);
+            setError("Kunde inte uppdatera all data.");
+        } finally {
+            setLocalLoading(false);
+        }
+    };
 
+    const fetchEvents = async () => {
+        try {
+            // Only fetch events for visible courses
+            const courseIds = courses.map(c => c.id).join(',');
+            const res = await axios.get(`/api/events`, { params: { courseIds } });
+            setEvents(res.data);
             await dbSet(`schedule_cache_global`, {
-                timestamp: now,
+                timestamp: Date.now(),
                 data: res.data
             });
         } catch (err) {
             console.error("Failed to fetch events", err);
-            setError("Kunde inte hämta kalenderhändelser.");
-        } finally {
-            if (force) setLocalLoading(false);
+            throw err;
         }
     };
 
-    const fetchTodos = async (force = false) => {
+    const fetchTodos = async () => {
         try {
-            const res = await axios.get('/api/todos');
+            // Only fetch todos for visible courses
+            const courseIds = courses.map(c => c.id).join(',');
+            const res = await axios.get('/api/todos', { params: { courseIds } });
             processRecentTodos(res.data);
-            // We don't save to cache here to avoid conflicts with TodoView's cache management, 
-            // or we could, but let's just use it for display.
-            // Actually, for consistency, let's update cache if we fetched it.
             await dbSet('todo_cache_data', res.data);
         } catch (err) {
             console.error("Failed to fetch todos for dashboard", err);
+            throw err;
         }
     };
 
@@ -138,8 +152,16 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
             return timeB - timeA;
         });
 
-        setRecentTodos(allPending.slice(0, 5));
+        setAllPendingTodos(allPending);
     };
+
+    // Filter todos based on selection
+    const displayedTodos = useMemo(() => {
+        if (selectedCourseName) {
+            return allPendingTodos.filter(t => t.courseName === selectedCourseName);
+        }
+        return allPendingTodos.slice(0, 5); // Default top 5
+    }, [allPendingTodos, selectedCourseName]);
 
     const getEventsForDay = (day) => {
         return events.filter(event => {
@@ -368,15 +390,31 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
                                                 return (
                                                     <div 
                                                         key={event.id} 
-                                                        className="position-absolute p-1 rounded border shadow-sm overflow-hidden"
+                                                        className="position-absolute p-1 rounded border shadow-sm overflow-hidden event-card"
                                                         style={{ 
                                                             ...style,
                                                             backgroundColor: theme.bg,
-                                                            borderColor: theme.border,
+                                                            borderColor: selectedCourseName === (event.courseName || event.summary) ? 'black' : theme.border,
                                                             borderLeftWidth: '4px',
-                                                            zIndex: 10
+                                                            zIndex: 10,
+                                                            cursor: 'pointer',
+                                                            boxShadow: selectedCourseName === (event.courseName || event.summary) ? '0 0 0 2px rgba(0,0,0,0.1)' : ''
                                                         }}
-                                                        title={`${event.summary}\n${group ? `Grupp: ${group}` : ''}\n${event.location || ''}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const name = event.courseName || event.summary;
+                                                            
+                                                            // DEBUG LOGGING
+                                                            console.log("--- Kalenderhändelse klickad ---");
+                                                            console.log("Titel:", event.summary);
+                                                            console.log("Beskrivning:", event.description);
+                                                            console.log("Plats:", event.location);
+                                                            console.log("Matchad kurs i backend:", event.courseName);
+                                                            console.log("Hela objektet:", event);
+                                                            
+                                                            setSelectedCourseName(name);
+                                                        }}
+                                                        title={`${event.summary}\n${group ? `Grupp: ${group}` : ''}\n${event.location || ''}\n(Klicka för att se uppgifter)`}
                                                     >
                                                         {/* Title (Bold) */}
                                                         <div className="fw-bold text-truncate small lh-1 mb-1" style={{ color: theme.text }}>
@@ -424,12 +462,25 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
                     {/* Recent Todos Section */}
                     <div>
                         <h6 className="text-uppercase text-muted fw-bold small mb-3 d-flex justify-content-between align-items-center">
-                            <span><i className="bi bi-bell-fill me-2"></i>Att rätta (Topp 5)</span>
-                            <span className="badge bg-danger rounded-pill">{recentTodos.length > 0 ? recentTodos.length : '0'}</span>
+                            <span>
+                                <i className="bi bi-bell-fill me-2"></i>
+                                {selectedCourseName ? 'Att rätta (Kurs)' : 'Att rätta (Top 5)'}
+                            </span>
+                            <span className="badge bg-danger rounded-pill">{displayedTodos.length > 0 ? displayedTodos.length : '0'}</span>
                         </h6>
                         
+                        {selectedCourseName && (
+                            <div className="alert alert-info py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm border-0" style={{fontSize: '0.8rem'}}>
+                                <div className="text-truncate me-2 fw-bold">
+                                    <i className="bi bi-funnel-fill me-2"></i>
+                                    {selectedCourseName}
+                                </div>
+                                <button className="btn btn-close btn-sm" onClick={() => setSelectedCourseName(null)} title="Rensa filter"></button>
+                            </div>
+                        )}
+                        
                         <div className="d-flex flex-column gap-2">
-                            {recentTodos.length > 0 ? recentTodos.map((todo, idx) => (
+                            {displayedTodos.length > 0 ? displayedTodos.map((todo, idx) => (
                                 <div key={todo.workId + idx} className="card border-0 shadow-sm p-2">
                                     <div className="d-flex justify-content-between align-items-start mb-1">
                                         <span className="badge bg-light text-primary border" style={{fontSize: '0.65rem'}}>{todo.courseName}</span>

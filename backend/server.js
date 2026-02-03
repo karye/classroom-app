@@ -348,45 +348,50 @@ app.get('/api/events', checkAuth, async (req, res) => {
     try {
         const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
         
-        // 1. Fetch all active courses to build search terms
+        // 1. Fetch all active courses
         const coursesRes = await classroom.courses.list({ courseStates: ['ACTIVE'] });
-        const courses = coursesRes.data.courses || [];
+        let courses = coursesRes.data.courses || [];
+        
+        // Filter by requested courseIds if provided
+        if (req.query.courseIds) {
+            const requestedIds = new Set(req.query.courseIds.split(','));
+            courses = courses.filter(c => requestedIds.has(c.id));
+            console.log(`[DEBUG] Filtering events for ${courses.length} requested courses.`);
+        }
         
         if (courses.length === 0) return res.json([]);
 
-        // Build a map of terms -> courseName to identify events later
-        const termToCourse = new Map();
-        const allTerms = new Set();
-
-        courses.forEach(c => {
+        // Pre-process courses to extract scoring keywords
+        const courseMatchers = courses.map(c => {
             const name = c.name || '';
             const section = c.section || '';
             
-            // Extract codes
+            // Extract codes (e.g., PRRPRR01)
             const codeRegex = /[A-Z]{3,}[A-Z0-9]{2,}/g;
             const codes = (name + ' ' + section).match(codeRegex) || [];
             
-            // Break down parts
+            // Specific keywords (high value)
+            const strongKeywords = [section].filter(s => s && s.length > 2).map(s => s.toLowerCase());
+
+            // General keywords (medium value) - Codes
+            const mediumKeywords = codes.map(c => c.toLowerCase());
+
+            // Weak keywords (low value) - Name parts
             const parts = (name + ' ' + section)
                 .replace(/[()]/g, ' ')
                 .split(/[\s_-]+/)
-                .filter(p => p.length > 3);
+                .filter(p => p.length > 3 && !codes.includes(p)); // Don't double count codes
+            const weakKeywords = parts.map(p => p.toLowerCase());
 
-            const terms = [...codes, ...parts, section, name].filter(t => t && t.length > 2);
-            
-            terms.forEach(term => {
-                const lowerTerm = term.toLowerCase();
-                if (!allTerms.has(lowerTerm)) {
-                    allTerms.add(lowerTerm);
-                    // Map term to course name (first match wins for simplicity)
-                    if (!termToCourse.has(lowerTerm)) {
-                        termToCourse.set(lowerTerm, c.name);
-                    }
-                }
-            });
+            return {
+                course: c,
+                strong: strongKeywords,
+                medium: mediumKeywords,
+                weak: weakKeywords
+            };
         });
 
-        console.log(`[DEBUG] Collected ${allTerms.size} unique search terms from ${courses.length} courses.`);
+        console.log(`[DEBUG] Prepared matchers for ${courses.length} courses.`);
 
         // 2. Fetch all calendar events
         const calendar = google.calendar({ version: 'v3', auth: globalOauth2Client });
@@ -396,7 +401,7 @@ app.get('/api/events', checkAuth, async (req, res) => {
         const eventsRes = await calendar.events.list({
             calendarId: 'primary',
             timeMin: threeMonthsAgo.toISOString(),
-            maxResults: 1000, // Increased limit for global fetch
+            maxResults: 1000, 
             singleEvents: true,
             orderBy: 'startTime',
         });
@@ -404,24 +409,57 @@ app.get('/api/events', checkAuth, async (req, res) => {
         const allEvents = eventsRes.data.items || [];
         console.log(`[DEBUG] Fetched ${allEvents.length} events from calendar.`);
 
-        // 3. Filter and Tag events
+        // 3. Score and Assign events
         const matchedEvents = allEvents.map(ev => {
             const text = ((ev.summary || '') + ' ' + (ev.description || '') + ' ' + (ev.location || '')).toLowerCase();
             
-            // Find which course matched (if any)
-            let matchedCourseName = null;
-            for (const term of allTerms) {
-                if (text.includes(term)) {
-                    matchedCourseName = termToCourse.get(term);
-                    break; 
-                }
-            }
+            // DEBUG: Trace specific events to understand matching
+            const isDebugEvent = text.includes('ee22'); 
+            if (isDebugEvent) console.log(`[DEBUG] Scoring event: "${ev.summary}"`);
 
-            if (matchedCourseName) {
-                return { ...ev, courseName: matchedCourseName };
+            let bestMatch = null;
+            let highestScore = 0;
+
+            // First pass: Score all courses
+            const scores = courseMatchers.map(matcher => {
+                let score = 0;
+                matcher.strong.forEach(kw => { if (text.includes(kw)) score += 50; }); // Massive boost for exact section match
+                matcher.medium.forEach(kw => { if (text.includes(kw)) score += 10; });
+                matcher.weak.forEach(kw => { if (text.includes(kw)) score += 1; });
+                return { matcher, score };
+            });
+
+            // Second pass: Penalty for mismatching sections
+            // If the text contains a STRONG keyword (Section) from Course A, 
+            // then Course B (which doesn't have that keyword) should be disqualified or heavily penalized.
+            const presentStrongKeywords = [];
+            courseMatchers.forEach(m => {
+                m.strong.forEach(kw => {
+                    if (text.includes(kw)) presentStrongKeywords.push(kw);
+                });
+            });
+
+            scores.forEach(item => {
+                // If the text has a section keyword that DOESN'T belong to this course, kill the score.
+                const hasAlienSection = presentStrongKeywords.some(k => !item.matcher.strong.includes(k));
+                if (hasAlienSection) {
+                    item.score = -100; 
+                }
+                
+                if (isDebugEvent) console.log(`   -> Course: ${item.matcher.course.name} (${item.matcher.course.section}) = ${item.score}p`);
+
+                if (item.score > 0 && item.score > highestScore) {
+                    highestScore = item.score;
+                    bestMatch = item.matcher.course;
+                }
+            });
+
+            if (bestMatch) {
+                if (isDebugEvent) console.log(`   => WINNER: ${bestMatch.name}`);
+                return { ...ev, courseName: bestMatch.name };
             }
             return null;
-        }).filter(Boolean); // Remove nulls
+        }).filter(Boolean);
 
         console.log(`[DEBUG] Returning ${matchedEvents.length} global events.`);
         res.json(matchedEvents);
@@ -620,7 +658,14 @@ app.get('/api/todos', checkAuth, async (req, res) => {
         
         // 1. Get all active courses
         const coursesRes = await classroom.courses.list({ courseStates: ['ACTIVE'] });
-        const allCourses = coursesRes.data.courses || [];
+        let allCourses = coursesRes.data.courses || [];
+        
+        // Filter by requested courseIds if provided
+        if (req.query.courseIds) {
+            const requestedIds = new Set(req.query.courseIds.split(','));
+            allCourses = allCourses.filter(c => requestedIds.has(c.id));
+            console.log(`[DEBUG] Filtering todos for ${allCourses.length} requested courses.`);
+        }
         
         if (allCourses.length === 0) return res.json([]);
 
@@ -793,6 +838,43 @@ app.get('/api/settings', checkAuth, (req, res) => {
     });
 });
 
+app.get('/api/stats', checkAuth, async (req, res) => {
+    try {
+        const userId = req.session.userId;
+        const dbPath = './classroom.db'; // Default sqlite path
+        
+        // 1. File Size
+        let sizeBytes = 0;
+        if (fs.existsSync(dbPath)) {
+            const stats = fs.statSync(dbPath);
+            sizeBytes = stats.size;
+        }
+
+        // 2. Row Counts
+        const notesCount = await new Promise((resolve, reject) => {
+            db.get('SELECT COUNT(*) as count FROM notes WHERE user_id = ?', [userId], (err, row) => {
+                if (err) reject(err); else resolve(row.count);
+            });
+        });
+        
+        const notesPerCourse = await new Promise((resolve, reject) => {
+            db.all('SELECT course_id, COUNT(*) as count FROM notes WHERE user_id = ? GROUP BY course_id', [userId], (err, rows) => {
+                if (err) reject(err); else resolve(rows);
+            });
+        });
+
+        res.json({
+            dbSize: sizeBytes,
+            totalNotes: notesCount,
+            notesDistribution: notesPerCourse
+        });
+
+    } catch (err) {
+        console.error("Stats error:", err);
+        res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
 app.post('/api/settings', checkAuth, (req, res) => {
     const userId = req.session.userId;
     const settingsData = JSON.stringify(req.body);
@@ -822,4 +904,7 @@ app.post('/api/logout', (req, res) => {
     res.json({ message: 'Logged out' });
 });
 
-app.listen(PORT, () => console.log(`Backend: http://localhost:${PORT}`));
+app.listen(PORT, () => {
+    console.log(`Backend: http://localhost:${PORT}`);
+    console.log("--- SERVER RESTARTED WITH NEW SCORING ALGO ---");
+});

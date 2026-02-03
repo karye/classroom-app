@@ -2,8 +2,36 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
-## [2026-02-02] - "Utökad Filtrering & Detaljerad Insyn"
+## 2026-02-03
 
+### ✨ Nya Funktioner
+*   **Inställningar 2.0:** Flyttat inställningar från en modal till en **egen fullskärmsvy**.
+    *   Lagt till flikar: "Anpassning" och "Systemdata".
+    *   **Systemdata:** Ny dashboard som visar databasstorlek, cache-status och server-anteckningar per kurs.
+    *   Möjlighet att rensa cache för specifika kurser.
+*   **Enhetliga Verktygsfält:**
+    *   **Matrisvy:** Ersatt separata checkboxar med en Dropdown ("Alla", "Uppgifter", "Prov"). Tagit bort "Att rätta"-filtret.
+    *   **Todo-vy:** Uppdaterat verktygsfältet för att matcha Matrisvyn (samma Dropdown-logik).
+
+### ⚡ Förbättringar & Optimering
+*   **Smart Kalender-matchning:** Implementerat en **poängbaserad algoritm** i backend för att koppla kalenderhändelser till rätt kurs.
+    *   Straffar felaktiga sektionskoder (t.ex. EE22A vs EE22B) för att förhindra ihopblandning.
+    *   Ger hög poäng (50p) för exakt gruppmatchning.
+*   **Optimerad Global Synk:**
+    *   "Synka"-knappen i Kalendervyn skickar nu bara med ID på *synliga* kurser till backend.
+    *   Backend filtrerar bort dolda kurser innan bearbetning, vilket snabbar upp processen avsevärt.
+    *   Lagt till en varningsruta ("Bekräfta synk") för att förhindra oavsiktliga tunga körningar.
+*   **Kalender-interaktion:**
+    *   Klick på en lektion i schemat filtrerar nu sidopanelen ("Att rätta") på den specifika kursen.
+    *   Tydligare visuell feedback på vald lektion.
+
+### 🐛 Buggfixar
+*   Fixat bugg där parallella kurser (samma ämneskod, olika klasser) blandades ihop i schemat.
+*   Fixat inkonsekvent "Synkar..."-indikator i Todo-vyn.
+
+---
+
+## 2026-02-02
 En uppdatering fokuserad på att ge läraren verktyg för att filtrera bort "brus" (irrelevanta uppgifter) och få djupare insyn i bedömningsunderlag.
 
 ### 🚀 Nytt & Tillagt

@@ -44,6 +44,7 @@ export const dbRemove = async (key) => {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('caches', 'readwrite');
     const store = transaction.objectStore('caches');
+    const request = store.delete(key);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });

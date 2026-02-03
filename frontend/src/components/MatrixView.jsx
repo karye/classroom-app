@@ -13,9 +13,12 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
     const [details, setDetails] = useState(null);
     const [loading, setLoading] = useState(false);
     const [filterText, setFilterText] = useState('');
-    const [showGraded, setShowGraded] = useState(false);
-    const [showUngraded, setShowUngraded] = useState(true);
-    const [showPending, setShowPending] = useState(false);
+    const [assignmentFilter, setAssignmentFilter] = useState('ungraded'); // 'all', 'graded', 'ungraded'
+    
+    // Derived state for compatibility
+    const showGraded = assignmentFilter === 'graded' || assignmentFilter === 'all';
+    const showUngraded = assignmentFilter === 'ungraded' || assignmentFilter === 'all';
+
     const [hideNoDeadline, setHideNoDeadline] = useState(localStorage.getItem('matrix_hide_nodeadline') === 'true');
     const [showHeatmap, setShowHeatmap] = useState(localStorage.getItem('matrix_show_heatmap') !== 'false'); // Default true
     const [sortType, setSortType] = useState('name-asc');
@@ -295,14 +298,13 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
         const matchesText = cw.title.toLowerCase().includes(filterText.toLowerCase());
         const isGraded = cw.maxPoints && cw.maxPoints > 0;
         const matchesType = (isGraded && showGraded) || (!isGraded && showUngraded);
-        const matchesPending = !showPending || details.submissions.some(s => s.courseWorkId === cw.id && s.state === 'TURNED_IN');
         const matchesDeadline = !hideNoDeadline || (cw.dueDate && cw.dueDate.year);
         
         // Filter logic
         const matchesAssignmentExclude = matchesFilterList(cw.title, excludeFilters);
         const matchesTopicExclude = matchesFilterList(topicMap.get(cw.topicId), excludeTopicFilters);
         
-        return matchesText && matchesType && matchesPending && matchesDeadline && !matchesAssignmentExclude && !matchesTopicExclude;
+        return matchesText && matchesType && matchesDeadline && !matchesAssignmentExclude && !matchesTopicExclude;
     });
 
     const groupedWork = [];
@@ -377,19 +379,21 @@ const MatrixView = ({ courseId, courseName, refreshTrigger, onUpdate, onLoading,
                              <input type="text" className="form-control border-start-0 ps-0" placeholder="Filtrera uppgifter..." value={filterText} onChange={(e) => setFilterText(e.target.value)} />
                         </div>
                         <div className="vr h-50 opacity-25"></div>
+                        <div className="d-flex align-items-center gap-2">
+                             <i className="bi bi-funnel text-muted"></i>
+                             <select 
+                                onChange={(e) => setAssignmentFilter(e.target.value)} 
+                                value={assignmentFilter} 
+                                className="form-select form-select-sm border-0 fw-bold text-dark bg-transparent ps-0" 
+                                style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }}
+                             >
+                                <option value="all">Visa: Alla uppgifter</option>
+                                <option value="ungraded">Visa: Uppgifter (Ej prov)</option>
+                                <option value="graded">Visa: Prov & Bedömning</option>
+                             </select>
+                        </div>
+                        <div className="vr h-50 opacity-25"></div>
                         <div className="d-flex align-items-center gap-3">
-                             <div className="form-check form-check-inline m-0">
-                                 <input className="form-check-input" type="checkbox" id="checkGraded" checked={showGraded} onChange={e => setShowGraded(e.target.checked)} />
-                                 <label className="form-check-label small fw-bold" htmlFor="checkGraded">Prov</label>
-                             </div>
-                             <div className="form-check form-check-inline m-0">
-                                 <input className="form-check-input" type="checkbox" id="checkUngraded" checked={showUngraded} onChange={e => setShowUngraded(e.target.checked)} />
-                                 <label className="form-check-label small fw-bold" htmlFor="checkUngraded">Uppg.</label>
-                             </div>
-                             <div className="form-check form-check-inline m-0">
-                                 <input className="form-check-input" type="checkbox" id="checkPending" checked={showPending} onChange={e => setShowPending(e.target.checked)} />
-                                 <label className="form-check-label small fw-bold text-danger" htmlFor="checkPending">Att rätta</label>
-                             </div>
                              <div className="form-check form-check-inline m-0">
                                  <input className="form-check-input" type="checkbox" id="checkDeadline" checked={hideNoDeadline} onChange={e => setHideNoDeadline(e.target.checked)} />
                                  <label className="form-check-label small fw-bold" htmlFor="checkDeadline">Deadline</label>

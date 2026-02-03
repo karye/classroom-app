@@ -13,11 +13,16 @@ Systemet hämtar data från två källor via Google Calendar API:
 1.  **Kurskalendrar:** Varje Classroom-kurs har en specifik kalender.
 2.  **Primär kalender:** Lärarens huvudkalender, där schemasynk-system (t.ex. Skola24) ofta lägger in lektioner.
 
-### B. Smart Sökning (Reconciliation)
-För att hitta rätt händelser i den primära kalendern använder backend en "fuzzy matching"-algoritm:
-1.  **Analys:** För varje aktiv kurs analyseras Namn och Sektion (Avsnitt).
-2.  **Extrahering:** Vi letar efter mönster som liknar kurskoder (t.ex. `PRRPRR01`, `TE23A`) med RegEx.
-3.  **Filtrering:** Alla händelser i primärkalendern hämtas (senaste 3 mån) och filtreras lokalt. En händelse inkluderas om dess titel eller beskrivning matchar någon av kursens identifierare.
+### B. Smart Sökning (Poängbaserad Algoritm)
+För att korrekt koppla kalenderhändelser till rätt kurs (särskilt vid parallella kurser med samma kod, t.ex. "PRRPRR01") används ett vikta poängsystem:
+
+1.  **Analys:** Varje aktiv kurs analyseras för att hitta nyckelord (Kurskod, Grupp/Sektion).
+2.  **Poängsättning:** Varje händelse i kalendern poängsätts mot varje kurs:
+    *   **+50 poäng:** Exakt matchning av **Sektion/Grupp** (t.ex. "EE22A"). Detta väger tyngst.
+    *   **+10 poäng:** Matchning av **Kurskod** (t.ex. "PRRPRR01").
+    *   **+1 poäng:** Matchning av ord i kursnamnet.
+    *   **-100 poäng (Straff):** Om händelsen innehåller en sektionskod som tillhör en *annan* kurs. Detta diskvalificerar felaktiga matchningar.
+3.  **Resultat:** Kursen med högst poäng (>0) vinner händelsen.
 
 ### C. Layout-algoritm (Visualisering)
 För att visa schemat snyggt används en "Packing Algorithm":
@@ -35,19 +40,21 @@ Systemet normaliserar status från Google Classroom till en intern modell:
 *   `RETURNED` -> **Done** (Visas som betyg eller klar-markering).
 *   `CREATED` -> **Pending** (Ej inlämnad).
 
-### B. Matrisen
-Använder en kompakt visning:
-*   **Ikoner:** Används i rutnätet för att spara plats.
-*   **Färg:** Cellens bakgrundsfärg styrs av status (Ljusblå = Inlämnad) eller resultat (Heatmap).
-*   **Filtrering:** Uppgifter kan filtreras bort om de saknar deadline (`dueDate`) via `hideNoDeadline`-filtret.
-
-### C. Todo (Att Göra)
-*   **Poänghantering:** API:et inkluderar nu `maxPoints` för varje uppgift. Detta används för att kunna filtrera bort "enkla" uppgifter som saknar poäng (via `hideNoPoints`-filtret).
-*   **Detaljerad Logging:** Frontend loggar detaljerad status (Inlämnad/Betygsatt/Tilldelad) och poäng (X/Y) för alla elever direkt till webbläsarkonsolen för felsökning.
+### B. Matrisen & Todo (Enhetlig Filtrering)
+Båda vyerna använder nu samma logik för att filtrera uppgifter:
+*   **Graded (Prov):** Uppgifter där `maxPoints > 0`.
+*   **Ungraded (Uppgifter):** Uppgifter utan poäng eller `maxPoints = 0` (om API stödjer det).
+*   **Filtrering:** Användaren kan välja att se "Alla", "Endast Graded" eller "Endast Ungraded".
 
 ---
 
 ## 3. API & Prestanda
+
+### Optimerad Global Synk
+För att snabba upp laddningstider vid "Global Synk" (Schema-vyn):
+1.  **Frontend:** Skickar en lista med ID:n för alla *synliga* kurser (baserat på användarens filter).
+2.  **Backend:** Filtrerar bort alla kurser som inte finns i listan *innan* några API-anrop görs mot Google Classroom.
+3.  **Effekt:** Gamla/dolda kurser belastar inte systemet, vilket drastiskt minskar tiden för uppdatering.
 
 ### Rate Limiting (Concurrency Control)
 För att undvika "Quota Exceeded":
@@ -56,7 +63,7 @@ För att undvika "Quota Exceeded":
 
 ### Offline-First & Caching
 *   **IndexedDB:** All data (Kurser, Inlägg, Matris, Schema) sparas lokalt.
-*   **Felhantering:** Om API:et returnerar fel (t.ex. 404 eller nätverksfel) vid en uppdatering, *behålls* den cachade datan på skärmen för att tillåta fortsatt arbete.
+*   **Statistik:** Applikationen kan nu beräkna och visa exakt hur mycket plats cachen tar per kurs via `/api/stats`.
 
 ---
 

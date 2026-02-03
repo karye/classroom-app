@@ -18,7 +18,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); 
     const [sortType, setSortType] = useState('date-desc'); 
     const [hideEmptyAssignments, setHideEmptyAssignments] = useState(localStorage.getItem('todo_hide_empty') === 'true');
-    const [hideNoPoints, setHideNoPoints] = useState(localStorage.getItem('todo_hide_nopoints') === 'true');
+    const [assignmentFilter, setAssignmentFilter] = useState(localStorage.getItem('todo_assignment_filter') || 'all'); // 'all', 'graded', 'ungraded'
     const [filterText, setFilterText] = useState('');
 
     // Helper to check if a string matches any filter
@@ -59,8 +59,8 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     }, [hideEmptyAssignments]);
 
     useEffect(() => {
-        localStorage.setItem('todo_hide_nopoints', hideNoPoints);
-    }, [hideNoPoints]);
+        localStorage.setItem('todo_assignment_filter', assignmentFilter);
+    }, [assignmentFilter]);
 
     // Only fetch on manual trigger
     useEffect(() => {
@@ -101,7 +101,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
 
     const fetchSingleCourseTodo = async (courseId) => {
         if (!courseId) return;
-        setIsRefreshing(true);
+        setLocalLoading(true, true);
         try {
             const res = await axios.get(`/api/courses/${courseId}/todos`);
             const newData = res.data; // Object or null
@@ -132,7 +132,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
         } catch (err) {
             console.error("Failed to update single course", err);
         } finally {
-            setIsRefreshing(false);
+            setLocalLoading(false, true);
         }
     };
 
@@ -189,7 +189,12 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     const sortedAssignments = React.useMemo(() => allAssignments
         .filter(a => {
             if (hideEmptyAssignments && a.pending.length === 0) return false;
-            if (hideNoPoints && !a.maxPoints) return false;
+            
+            // New consistent filter logic
+            const isGraded = a.maxPoints && a.maxPoints > 0;
+            if (assignmentFilter === 'graded' && !isGraded) return false;
+            if (assignmentFilter === 'ungraded' && isGraded) return false;
+
             if (filterText && !a.title.toLowerCase().includes(filterText.toLowerCase())) return false;
             return true;
         })
@@ -198,7 +203,7 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
             if (sortType === 'date-desc') return (b.latestUpdate || 0) - (a.latestUpdate || 0);
             if (sortType === 'date-asc') return (a.latestUpdate || 0) - (b.latestUpdate || 0);
             return 0;
-        }), [allAssignments, hideEmptyAssignments, hideNoPoints, filterText, sortType]);
+        }), [allAssignments, hideEmptyAssignments, assignmentFilter, filterText, sortType]);
 
     // 3. Group sorted assignments into topics
     const { topicGroups, visibleAssignments } = React.useMemo(() => {
@@ -290,8 +295,8 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
                 setSortType={setSortType} 
                 hideEmptyAssignments={hideEmptyAssignments} 
                 setHideEmptyAssignments={setHideEmptyAssignments}
-                hideNoPoints={hideNoPoints}
-                setHideNoPoints={setHideNoPoints}
+                assignmentFilter={assignmentFilter}
+                setAssignmentFilter={setAssignmentFilter}
                 filterText={filterText}
                 setFilterText={setFilterText}
             />

@@ -4,6 +4,7 @@ import StreamView from './components/StreamView'
 import TodoView from './components/TodoView'
 import MatrixView from './components/MatrixView'
 import ScheduleView from './components/ScheduleView'
+import SettingsView from './components/SettingsView'
 import { dbClear } from './db'
 import './App.css'
 
@@ -28,7 +29,6 @@ function App() {
   const selectedCourseId = viewCourseIds[currentView] || '';
   
   // Settings State
-  const [showSettings, setShowSettings] = useState(false);
   const [excludeFilters, setExcludeFilters] = useState([]);
   const [excludeTopicFilters, setExcludeTopicFilters] = useState([]);
   const [hiddenCourseIds, setHiddenCourseIds] = useState([]);
@@ -80,8 +80,22 @@ function App() {
 
   // Refresh triggers to talk to child components
   const [refreshTriggers, setRefreshTriggers] = useState({ matrix: 0, stream: 0, todo: 0, schedule: 0 });
+  const [showSyncWarning, setShowSyncWarning] = useState(false);
 
   axios.defaults.withCredentials = true;
+
+  const handleRefreshClick = () => {
+      if (currentView === 'schedule') {
+          setShowSyncWarning(true);
+      } else {
+          setRefreshTriggers(prev => ({ ...prev, [currentView]: prev[currentView] + 1 }));
+      }
+  };
+
+  const confirmGlobalSync = () => {
+      setShowSyncWarning(false);
+      setRefreshTriggers(prev => ({ ...prev, schedule: prev.schedule + 1 }));
+  };
 
   useEffect(() => {
     localStorage.setItem('lastSelectedView', currentView);
@@ -187,6 +201,9 @@ function App() {
                          <button className={`btn btn-sm ${currentView === 'todo' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => setCurrentView('todo')} title="Att göra">
                              <i className="bi bi-check2-square fs-5"></i>
                          </button>
+                         <button className={`btn btn-sm ${currentView === 'settings' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => setCurrentView('settings')} title="Inställningar">
+                             <i className="bi bi-gear-fill fs-5"></i>
+                         </button>
                     </div>
                     <div className="vr mx-2"></div>
                     
@@ -200,7 +217,7 @@ function App() {
                     <div className="text-muted small d-none d-md-block me-1">
                         {lastUpdated[currentView === 'todo' ? 'todo' : selectedCourseId] && <span>Uppdaterad {lastUpdated[currentView === 'todo' ? 'todo' : selectedCourseId]}</span>}
                     </div>
-                    <button onClick={() => setRefreshTriggers(prev => ({ ...prev, [currentView]: prev[currentView] + 1 }))} 
+                    <button onClick={handleRefreshClick} 
                         className={`btn btn-sm d-flex align-items-center gap-2 ${viewLoading ? 'btn-outline-primary' : 'btn-outline-secondary'}`}
                         title="Hämta senaste data från Google Classroom"
                         disabled={viewLoading}
@@ -208,15 +225,25 @@ function App() {
                         <i className={`bi bi-arrow-clockwise ${viewLoading ? 'spin' : ''}`}></i>
                         {viewLoading && <span className="small fw-bold">Synkar...</span>}
                     </button>
-                    <button onClick={() => setShowSettings(true)} className="btn btn-light btn-sm" title="Inställningar">
-                        <i className="bi bi-gear"></i>
-                    </button>
                     <button onClick={handleLogout} className="btn btn-light btn-sm text-danger" title="Logga ut"><i className="bi bi-power"></i></button>
                 </div>
             </header>
 
             <main className="flex-grow-1 overflow-hidden d-flex flex-column position-relative bg-white">
-                {currentView === 'todo' ? (
+                {currentView === 'settings' ? (
+                    <div className="flex-grow-1 overflow-auto bg-light">
+                        <SettingsView 
+                            courses={courses}
+                            hiddenCourseIds={hiddenCourseIds}
+                            onToggleCourse={handleToggleCourse}
+                            excludeFilters={excludeFilters}
+                            onUpdateFilters={handleUpdateFilters}
+                            excludeTopicFilters={excludeTopicFilters}
+                            onUpdateTopicFilters={handleUpdateTopicFilters}
+                            onClose={() => setCurrentView('matrix')} // Default back to matrix
+                        />
+                    </div>
+                ) : currentView === 'todo' ? (
                     <TodoView 
                         selectedCourseId={selectedCourseId} 
                         refreshTrigger={refreshTriggers.todo} 
@@ -260,98 +287,32 @@ function App() {
                 )}
             </main>
 
-            {/* Settings Modal */}
-            {showSettings && (
-                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }} onClick={() => setShowSettings(false)}>
-                    <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
+            {/* Sync Warning Modal */}
+            {showSyncWarning && (
+                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }} onClick={() => setShowSyncWarning(false)}>
+                    <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content shadow-lg border-0">
-                            <div className="modal-header bg-light">
+                            <div className="modal-header bg-warning-subtle text-dark border-bottom-0">
                                 <h5 className="modal-title fw-bold d-flex align-items-center">
-                                    <i className="bi bi-sliders2-vertical me-2 text-primary"></i>
-                                    Inställningar
+                                    <i className="bi bi-exclamation-triangle-fill me-2 text-warning"></i>
+                                    Bekräfta global synkning
                                 </h5>
-                                <button type="button" className="btn-close" onClick={() => setShowSettings(false)} aria-label="Close"></button>
+                                <button type="button" className="btn-close" onClick={() => setShowSyncWarning(false)}></button>
                             </div>
-                            <div className="modal-body p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                                
-                                {/* COURSE FILTER */}
-                                <div className="mb-5">
-                                    <label className="form-label fw-bold mb-1">Dina klassrum</label>
-                                    <p className="small text-muted mb-3">Välj vilka klassrum du vill se i appen. (Avmarkera för att dölja gamla kurser).</p>
-                                    <div className="border rounded p-3 bg-white" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                                        {courses.length > 0 ? courses.map(course => (
-                                            <div key={course.id} className="form-check mb-2">
-                                                <input 
-                                                    className="form-check-input" 
-                                                    type="checkbox" 
-                                                    id={`course-${course.id}`}
-                                                    checked={!hiddenCourseIds.includes(course.id)}
-                                                    onChange={() => handleToggleCourse(course.id)}
-                                                />
-                                                <label className="form-check-label d-flex align-items-center gap-2" htmlFor={`course-${course.id}`}>
-                                                    <span className="fw-medium">{course.name}</span>
-                                                    {course.section && <span className="badge bg-light text-muted border">{course.section}</span>}
-                                                </label>
-                                            </div>
-                                        )) : <div className="text-muted small">Inga kurser hittades.</div>}
-                                    </div>
-                                </div>
-
-                                {/* ASSIGNMENT FILTER */}
-                                <div className="mb-5">
-                                    <label className="form-label fw-bold mb-1">Dölj uppgifter</label>
-                                    <p className="small text-muted mb-3">Uppgifter vars titel innehåller något av dessa ord döljs.</p>
-                                    <div className="input-group mb-3">
-                                        <input type="text" id="filter-input" className="form-control" placeholder="Ex: Lunch..." onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && e.target.value.trim()) {
-                                                if (!excludeFilters.includes(e.target.value.trim())) handleUpdateFilters([...excludeFilters, e.target.value.trim()]);
-                                                e.target.value = '';
-                                            }
-                                        }} />
-                                        <button className="btn btn-primary" onClick={() => {
-                                            const input = document.getElementById('filter-input');
-                                            if (input.value.trim() && !excludeFilters.includes(input.value.trim())) handleUpdateFilters([...excludeFilters, input.value.trim()]);
-                                            input.value = '';
-                                        }}>Lägg till</button>
-                                    </div>
-                                    <div className="d-flex flex-wrap gap-2">
-                                        {excludeFilters.map(f => (
-                                            <span key={f} className="badge bg-light text-dark border d-flex align-items-center gap-2 px-3 py-2 rounded-pill shadow-sm">
-                                                {f} <i className="bi bi-x-circle-fill text-danger cursor-pointer" onClick={() => handleUpdateFilters(excludeFilters.filter(x => x !== f))}></i>
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* TOPIC FILTER */}
-                                <div>
-                                    <label className="form-label fw-bold mb-1">Dölj hela ämnen</label>
-                                    <p className="small text-muted mb-3">Ämnen som matchar dessa ord (och alla dess uppgifter) döljs helt.</p>
-                                    <div className="input-group mb-3">
-                                        <input type="text" id="topic-filter-input" className="form-control" placeholder="Ex: Administration..." onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && e.target.value.trim()) {
-                                                if (!excludeTopicFilters.includes(e.target.value.trim())) handleUpdateTopicFilters([...excludeTopicFilters, e.target.value.trim()]);
-                                                e.target.value = '';
-                                            }
-                                        }} />
-                                        <button className="btn btn-primary" onClick={() => {
-                                            const input = document.getElementById('topic-filter-input');
-                                            if (input.value.trim() && !excludeTopicFilters.includes(input.value.trim())) handleUpdateTopicFilters([...excludeTopicFilters, input.value.trim()]);
-                                            input.value = '';
-                                        }}>Lägg till</button>
-                                    </div>
-                                    <div className="d-flex flex-wrap gap-2">
-                                        {excludeTopicFilters.map(f => (
-                                            <span key={f} className="badge bg-light text-dark border d-flex align-items-center gap-2 px-3 py-2 rounded-pill shadow-sm">
-                                                {f} <i className="bi bi-x-circle-fill text-danger cursor-pointer" onClick={() => handleUpdateTopicFilters(excludeTopicFilters.filter(x => x !== f))}></i>
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-
+                            <div className="modal-body p-4">
+                                <p className="mb-0">
+                                    Du är på väg att uppdatera data för <strong>alla dina klassrum</strong> samtidigt. 
+                                    Detta hämtar både kalenderhändelser och inlämningsstatus för alla kurser.
+                                </p>
+                                <p className="mt-3 text-muted small mb-0">
+                                    Detta kan ta en liten stund beroende på hur många kurser du har.
+                                </p>
                             </div>
-                            <div className="modal-footer bg-light">
-                                <button type="button" className="btn btn-dark px-5 rounded-pill fw-bold" onClick={() => setShowSettings(false)}>Klar</button>
+                            <div className="modal-footer border-top-0 bg-light">
+                                <button type="button" className="btn btn-outline-secondary" onClick={() => setShowSyncWarning(false)}>Avbryt</button>
+                                <button type="button" className="btn btn-primary px-4 fw-bold" onClick={confirmGlobalSync}>
+                                    Starta synkning
+                                </button>
                             </div>
                         </div>
                     </div>

@@ -13,9 +13,9 @@ En fullstack webbapplikation för lärare att visualisera, planera och följa el
 
 ### 📅 Schema & Planering (NY!)
 *   **Veckovy:** Ett globalt schema som visar lektioner från *alla* dina aktiva kurser samtidigt.
-*   **Smart Kalender-synk:** Hämtar händelser både från Classrooms kalendrar och din primära kalender (filtrerat på kurskoder).
-*   **Krockhantering:** Visar överlappande lektioner snyggt sida-vid-sida.
-*   **Tydlig Info:** Färgkodade kort visar kurs, grupp, tid och sal direkt.
+*   **Smart Kalender-synk:** Ny poängbaserad algoritm matchar lektioner till rätt kurs (hanterar parallella klasser exakt).
+*   **Interaktiv Dashboard:** Klicka på en lektion för att se "Att rätta" specifikt för den kursen direkt i sidopanelen.
+*   **Optimerad Prestanda:** Synkar endast synliga kurser för snabbare laddningstider.
 
 ### 📝 Stream & Loggbok
 *   **Kursflöde:** Läs inlägg och material med smidig kalendernavigering.
@@ -24,10 +24,14 @@ En fullstack webbapplikation för lärare att visualisera, planera och följa el
 *   **Offline-stöd:** Cachad data visas även om nätverket svajar.
 
 ### ✅ Todo (Att Göra)
+*   **Enhetlig Filtrering:** Växla enkelt mellan "Alla", "Prov" (Poängsatta) och "Uppgifter" (Ej poängsatta).
 *   **Inbox Zero:** Global lista över inlämningar som väntar på rättning.
-*   **Filter:** Sök på uppgifter, dölj de utan inlämningar eller utan poäng.
-*   **Detaljer:** Se exakt status ("Inlämnad", "Betygsatt", "Tilldelad") och poäng för varje elev.
 *   **Status-piller:** Enhetlig visualisering av status (Inlämnad, Klar, Sen) genom hela appen.
+
+### ⚙️ Inställningar & Systemdata
+*   **Fullskärmsvy:** Hantera filter och kurser i en tydlig vy.
+*   **Systemkoll:** Se exakt hur mycket lagringsutrymme cachen och databasen tar upp.
+*   **Cache-hantering:** Rensa data för enskilda kurser vid behov.
 
 ## 🛠 Teknikstack
 
