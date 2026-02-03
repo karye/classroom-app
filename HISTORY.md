@@ -22,6 +22,7 @@ Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard"
     *   Backend filtrerar bort dolda kurser innan bearbetning, vilket snabbar upp processen avsevärt.
     *   Lagt till en varningsruta ("Bekräfta synk") för att förhindra oavsiktliga tunga körningar.
 *   **Kalender-interaktion:**
+    *   **Todo-räknare:** Lagt till en röd indikeringssiffra på varje lektion i schemat som visar exakt hur många inlämningar som väntar på rättning i den kursen.
     *   Klick på en lektion i schemat filtrerar nu sidopanelen ("Att rätta") på den specifika kursen.
     *   Tydligare visuell feedback på vald lektion.
 

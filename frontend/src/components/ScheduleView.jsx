@@ -163,6 +163,15 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
         return allPendingTodos.slice(0, 5); // Default top 5
     }, [allPendingTodos, selectedCourseName]);
 
+    // Pre-calculate counts per course for the calendar badges
+    const todoCountsByCourse = useMemo(() => {
+        const counts = {};
+        allPendingTodos.forEach(t => {
+            counts[t.courseName] = (counts[t.courseName] || 0) + 1;
+        });
+        return counts;
+    }, [allPendingTodos]);
+
     const getEventsForDay = (day) => {
         return events.filter(event => {
             const start = event.start.dateTime ? parseISO(event.start.dateTime) : parseISO(event.start.date);
@@ -386,6 +395,7 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
                                             {positionedEvents.map(({ event, style }) => {
                                                 const { group } = getEventMetadata(event.description);
                                                 const theme = getCourseColor(event.courseName || event.summary);
+                                                const todoCount = todoCountsByCourse[event.courseName || event.summary] || 0;
                                                 
                                                 return (
                                                     <div 
@@ -416,6 +426,15 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
                                                         }}
                                                         title={`${event.summary}\n${group ? `Grupp: ${group}` : ''}\n${event.location || ''}\n(Klicka för att se uppgifter)`}
                                                     >
+                                                        {/* Todo Badge */}
+                                                        {todoCount > 0 && (
+                                                            <div className="position-absolute top-0 end-0 m-1">
+                                                                <span className="badge rounded-pill bg-danger shadow-sm" style={{ fontSize: '0.65rem' }}>
+                                                                    {todoCount}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
                                                         {/* Title (Bold) */}
                                                         <div className="fw-bold text-truncate small lh-1 mb-1" style={{ color: theme.text }}>
                                                             {event.summary}
