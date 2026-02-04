@@ -1,62 +1,67 @@
-# ⚖️ Kritisk Analys & Systemutmaningar (CRITICS)
+# Codebase Review & Framtidsanalys
+*Dokumenterad: 2026-02-03*
 
-Detta dokument fungerar som en objektiv granskning av applikationens nuvarande brister, tekniska risker och begränsningar. Syftet är att belysa områden där systemet är sårbart eller där arkitekturen kan bli ett hinder i framtiden.
+Denna fil innehåller en teknisk granskning av applikationen, identifierade svagheter och en färdplan för framtida arkitektoniska förbättringar.
 
----
+## 1. Nulägesanalys
 
-## 1. Tekniska Begränsningar & Arkitektur
+Applikationen är en fullstack React/Node.js-lösning som löser ett komplext problem: integrering av Google Classroom, Kalender och lokala skolregister (SchoolSoft).
 
-### 🏎️ Prestanda vid stora datamängder
-Trots implementering av `useMemo` och `IndexedDB` finns det en övre gräns för vad webbläsaren kan hantera smidigt. 
-*   **Kritik:** Matrisvyn renderar hundratals (ibland tusentals) DOM-element samtidigt. För en lärare med 10+ kurser och 30+ elever i varje klass kan gränssnittet bli trögt vid scrollning och navigering.
-*   **Risk:** "Reconciliation"-tiden i React ökar linjärt med antalet inlämningar, vilket kan leda till märkbar fördröjning trots optimering.
+### ✅ Styrkor
+*   **Modularitet:** Efter refaktoriseringen i februari 2026 är koden väl uppdelad. Backend är separerad i `routes/` och `services/`. Frontend är uppdelad i domän-specifika komponenter (`schedule/`, `matrix/`, `settings/`) och logik-hooks.
+*   **Offline-First:** Användningen av `IndexedDB` i frontend gör applikationen snabb och motståndskraftig mot nätverksproblem.
+*   **Domän-fokus:** Datan och vyerna är tydligt modellerade efter lärarens behov ("Att rätta", "Klasser", "Schema").
+*   **Robusthet:** Import-funktionen för elevregister är byggd för att hantera felaktig indata och stora datamängder utan att krascha servern.
 
-### 🗄️ SQLite som flaskhals
-Nuvarande lösning använder SQLite. 
-*   **Kritik:** Om appen skulle skala till en hel skola med många samtidiga användare kommer SQLite:s skriv-lås (write-locking) att bli ett problem.
-*   **Risk:** Databasen är lokal för Docker-containern. Utan ordentlig backup-logik riskerar användardata (loggböcker) att gå förlorade vid en korrupt volym.
-
----
-
-## 2. Externa Beroenden (Google API)
-
-### 🛑 Rate Limiting & Quotas
-Appen är helt beroende av Google Classroom och Calendar API.
-*   **Kritik:** Google har strikta begränsningar för hur många anrop som får göras per sekund/minut. Vår "Smart Synk" för kalendern och Todo-listan gör många anrop vid varje uppdatering.
-*   **Risk:** Om en lärare har extremt många kurser kan API-kvoten nås, vilket resulterar i att appen slutar fungera ("429 Too Many Requests") under en period.
-
-### 🔄 Datasynkronisering (Lag)
-Appen bygger på en lokal cache.
-*   **Kritik:** Det finns ingen "push"-notifiering från Google. Om en lärare rättar en uppgift direkt i Google Classroom (eller via Studybee), vet inte vår app om det förrän läraren manuellt trycker på "Uppdatera".
-*   **Konsekvens:** Risk för att läraren fattar beslut baserat på gammal information om hen glömmer att uppdatera vyn.
+### ⚠️ Svagheter & Risker
+*   **Typning (Saknas):** Projektet är skrivet i ren JavaScript. Detta ökar risken för runtime-fel (`undefined is not a function`) och gör refaktoriseringar riskabla då datastrukturer (t.ex. `student`-objektet) är implicita.
+*   **Objektorientering (Svag):** Koden är procedurell. Data skickas runt som råa JSON-objekt. Det saknas klasser/modeller som kapslar in affärslogik (t.ex. `student.isAtRisk()`).
+*   **Backend State:** Sessioner hanteras via cookies, men tunga operationer (som Google-importen) är beroende av serverns minne och tid.
+*   **Testning:** Det saknas helt automatiska enhetstester och integrationstester.
 
 ---
 
-## 3. Användarupplevelse (UX)
+## 2. Förslag på Förbättringar
 
-### 🧩 Information Overload
-Dashboarden och Matrisen strävar efter att visa "allt".
-*   **Kritik:** Gränssnittet är extremt datatätt. För en ny användare kan tröskeln vara hög ("Var ska jag titta?"). Den ultrakompakta designen (1px padding) sparar plats men offrar läsbarhet och luftighet.
-*   **Kritik:** Appen saknar en guidad "Onboarding".
+### A. Typsäkerhet (TypeScript)
+Detta är den enskilt viktigaste åtgärden för att säkra kodbasen långsiktigt.
+*   **Mål:** Migrera `.js/.jsx` till `.ts/.tsx`.
+*   **Nytta:** Fånga fel vid kompilering, bättre IDE-stöd, tydlig dokumentation av datastrukturer.
 
-### 🌓 Visuell konsistens
-*   **Kritik:** Många element förlitar sig på Bootstrap-standarder. Medan det är funktionellt, saknar appen en unik visuell identitet som känns modern och inspirerande. Frånvaron av "Dark Mode" är en brist för lärare som arbetar kvällstid.
+### B. Domänmodeller (DDD)
+Gå från att hantera rådata till att använda rika objekt/klasser.
+*   **Exempel:**
+    *   Skapa en `Student`-klass som vet hur den ska formatera sitt namn och beräkna sitt snittbetyg.
+    *   Skapa en `Assignment`-klass som vet om den är "sen" eller "inlämnad".
+*   **Plats:** `common/models/` (kan delas mellan frontend/backend om man kör monorepo-struktur eller delade paket).
+
+### C. State Management (React Context)
+Just nu skickas globalt tillstånd (`courses`, `refreshTrigger`) ner genom props ("prop drilling") i `App.jsx`.
+*   **Förslag:** Inför en `AppContext` eller använd ett state-bibliotek (Zustand/Redux).
+*   **Nytta:** Komponenter som `SettingsView` kan hämta data direkt från context utan att belasta `App.jsx`.
+
+### D. Teststrategi
+För att kunna refaktorera säkert behövs skyddsnät.
+*   **Steg 1:** Skriv enhetstester för `utils/`-filerna (`matrixUtils.js`, `calendarLayout.js`) med Jest/Vitest.
+*   **Steg 2:** Skriv API-tester för backend-routsen.
 
 ---
 
-## 4. Arbetsflöde & Integrationer
+## 3. Färdplan (Roadmap)
 
-### 🌉 Studybee-glappet
-Eftersom Studybee saknar API sker integrationen via en "omväg" (Classroom).
-*   **Kritik:** Vi kan aldrig garantera *när* Studybee väljer att synka från Classroom. Läraren kan markera en uppgift som "Klar" i vår app, se den försvinna, men eleven ser den fortfarande som "Ej klar" i Studybee under flera timmar. Detta kan skapa förvirring och onödig kommunikation.
+### Fas 1: Konsolidering (Nuvarande)
+*   Säkerställ att nuvarande refaktorisering är stabil.
+*   Fixa mindre UI-buggar och polera UX.
 
-### ✍️ Den enkelriktade naturen
-*   **Kritik:** Appen är fortfarande till stor del "Read-Only". Kraften i ett dashboard-verktyg minskar drastiskt när användaren ändå måste lämna appen för att utföra de faktiska handlingarna (t.ex. returnera en uppgift). Fram till att "Quick-Return" är implementerad är appen mer av ett analysverktyg än ett produktivitetsverktyg.
+### Fas 2: Typsäkerhet (Nästa stora steg)
+*   Sätt upp TypeScript-konfiguration.
+*   Definiera Interfaces för kärnobjekten: `Student`, `Course`, `Submission`.
+*   Migrera hjälpfunktioner (`utils/`) först.
 
----
+### Fas 3: Arkitekturlyft
+*   Inför `Service Layer` mönstret fullt ut i backend (Separera logik från HTTP-anrop).
+*   Inför React Context för global state.
 
-## 5. Säkerhet
-
-### 🔑 Krypteringens stabilitet
-*   **Kritik:** Loggboken krypteras med en `MASTER_KEY`. Om denna nyckel ändras eller tappas bort i servermiljön går alla befintliga loggar förlorade då de inte längre kan dekrypteras. 
-*   **Kritik:** Sessioner lagras i cookies. Även om de är krypterade, saknar appen avancerade säkerhetsfunktioner som tvåfaktorsautentisering (utöver vad Google erbjuder).
+### Fas 4: Kvalitetssäkring
+*   Implementera CI/CD pipeline som kör tester och linting.
+*   Skriv tester för kritisk affärslogik (betygssättning, import).
