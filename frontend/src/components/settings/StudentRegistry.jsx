@@ -73,6 +73,11 @@ const StudentRegistry = ({ courses }) => {
         }
     };
 
+    // Handler for selecting a group from the list
+    const handleSelectGroup = (className) => {
+        setSelectedGroup(className);
+    };
+
     const handleDeleteGroupClick = (groupName, e) => {
         e.stopPropagation(); 
         setGroupToDelete(groupName);
@@ -177,14 +182,13 @@ const StudentRegistry = ({ courses }) => {
                         <div className="p-2 border-bottom bg-white fw-bold text-muted small text-uppercase">Grupper</div>
                         <div className="list-group list-group-flush">
                             {groupedStudents.map(([className, students]) => (
-                                <button 
-                                    key={className}
-                                    className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center border-0 px-3 py-2 ${selectedGroup === className ? 'active fw-bold' : ''}`}
-                                    onClick={() => setSelectedGroup(className)}
-                                >
-                                    <span className="text-truncate me-2">{className}</span>
-                                    <div className="d-flex align-items-center gap-2">
-                                        <span className={`badge rounded-pill ${selectedGroup === className ? 'bg-white text-primary' : 'bg-secondary text-white opacity-50'}`}>
+                                                                                <button 
+                                                                                    key={className}
+                                                                                    className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center border-0 px-3 py-2 ${selectedGroup === className ? 'active fw-bold' : ''}`}
+                                                                                    onClick={() => handleSelectGroup(className)}
+                                                                                >
+                                                                                    <span className="text-truncate me-2" style={{ fontSize: '0.9rem' }}>{className}</span>
+                                                                                    <div className="d-flex align-items-center gap-2">                                        <span className={`badge rounded-pill ${selectedGroup === className ? 'bg-white text-primary' : 'bg-secondary text-white opacity-50'}`}>
                                             {students.length}
                                         </span>
                                         <div 
@@ -235,13 +239,14 @@ const StudentRegistry = ({ courses }) => {
                         </div>
                         
                         <div className="flex-grow-1 overflow-auto bg-white">
+                            {/* Student List */}
                             {selectedGroup ? (
                                 <ul className="list-group list-group-flush">
                                     {selectedGroupData.map((student, index) => {
                                         const isTemp = String(student.google_id).startsWith('TEMP_');
                                         return (
                                             <li key={student.google_id} className="list-group-item d-flex justify-content-between align-items-center px-3 py-1 hover-bg-light transition-all" style={{ minHeight: '35px' }}>
-                                                <div className="d-flex align-items-center gap-2 overflow-hidden">
+                                                <div className="d-flex align-items-center gap-2 overflow-hidden" style={{ fontSize: '0.85rem' }}>
                                                     <span className="text-muted small" style={{ minWidth: '20px' }}>{index + 1}.</span>
                                                     <div className={`rounded-circle border d-flex align-items-center justify-content-center flex-shrink-0 ${isTemp ? 'bg-warning bg-opacity-10 border-warning text-warning' : 'bg-success bg-opacity-10 border-success text-success'}`} style={{ width: '24px', height: '24px' }} title={isTemp ? "Ej matchad" : "Matchad"}>
                                                         <i className="bi bi-person" style={{ fontSize: '0.8rem' }}></i>
