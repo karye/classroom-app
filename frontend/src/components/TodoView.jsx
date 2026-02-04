@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { dbGet, dbSet } from '../db';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useTodoData } from '../hooks/useTodoData';
+import { useTodoFiltering } from '../hooks/useTodoFiltering';
 
 // Components
 import LoadingSpinner from './common/LoadingSpinner';
@@ -11,247 +11,41 @@ import TodoSidebar from './todo/TodoSidebar';
 import TodoDetails from './todo/TodoDetails';
 
 const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(true); 
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const [error, setError] = useState(null);
+    // UI State
     const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); 
     const [sortType, setSortType] = useState('date-desc'); 
     const [hideEmptyAssignments, setHideEmptyAssignments] = useState(localStorage.getItem('todo_hide_empty') === 'true');
-    const [assignmentFilter, setAssignmentFilter] = useState(localStorage.getItem('todo_assignment_filter') || 'all'); // 'all', 'graded', 'ungraded'
+    const [assignmentFilter, setAssignmentFilter] = useState(localStorage.getItem('todo_assignment_filter') || 'all'); 
     const [filterText, setFilterText] = useState('');
 
-    // Helper to check if a string matches any filter
-    const matchesFilterList = (text, filters) => {
-        if (!filters || filters.length === 0 || !text) return false;
-        const lowText = text.toLowerCase();
-        return filters.some(f => lowText.includes(f.toLowerCase()));
-    };
+    // Persistence
+    useEffect(() => { localStorage.setItem('todo_hide_empty', hideEmptyAssignments); }, [hideEmptyAssignments]);
+    useEffect(() => { localStorage.setItem('todo_assignment_filter', assignmentFilter); }, [assignmentFilter]);
+    useEffect(() => { if (selectedWorkKey) localStorage.setItem('todo_last_selected_work', selectedWorkKey); }, [selectedWorkKey]);
 
-    const setLocalLoading = (val, background = false) => {
-        if (!background) setLoading(val);
-        else setIsRefreshing(val);
-        if (onLoading) onLoading(val);
-    };
+    // Data Hook
+    const { data, loading, isRefreshing, error, refetch, fetchSingleCourseTodo } = useTodoData(selectedCourseId, refreshTrigger, onUpdate, onLoading);
 
-    // Load initial data from IndexedDB
-    useEffect(() => {
-        const loadCache = async () => {
-            setLocalLoading(true);
-            try {
-                const cached = await dbGet('todo_cache_data');
-                if (cached) {
-                    setData(cached);
-                    const savedTime = await dbGet('todo_cache_timestamp');
-                    if (savedTime && onUpdate) onUpdate(savedTime);
-                }
-            } catch (err) {
-                console.warn("Could not load Todo cache from IndexedDB", err);
-            } finally {
-                setLocalLoading(false);
-            }
-        };
-        loadCache();
-    }, []);
+    // Filtering Hook
+    const { sortedAssignments, topicGroups, visibleAssignments } = useTodoFiltering(data, {
+        selectedCourseId, filterText, assignmentFilter, hideEmptyAssignments, sortType, excludeFilters, excludeTopicFilters
+    });
 
-    useEffect(() => {
-        localStorage.setItem('todo_hide_empty', hideEmptyAssignments);
-    }, [hideEmptyAssignments]);
-
-    useEffect(() => {
-        localStorage.setItem('todo_assignment_filter', assignmentFilter);
-    }, [assignmentFilter]);
-
-    // Only fetch on manual trigger
-    useEffect(() => {
-        if (refreshTrigger > 0) {
-            if (selectedCourseId) {
-                fetchSingleCourseTodo(selectedCourseId);
-            } else {
-                fetchTodos(true);
-            }
-        }
-    }, [refreshTrigger]);
-
-    const fetchTodos = async (isBackground = false) => {
-        setLocalLoading(true, isBackground);
-        // Don't clear error immediately if we have data
-        try {
-            const res = await axios.get('/api/todos');
-            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            
-            setData(res.data);
-            setError(null);
-            
-            await dbSet('todo_cache_data', res.data);
-            await dbSet('todo_cache_timestamp', now);
-            
-            if (onUpdate) onUpdate(now);
-        } catch (err) {
-            console.error("Failed to fetch todos", err);
-            if (data.length === 0) {
-                setError("Kunde inte hämta att-göra-listan. Kontrollera anslutningen.");
-            } else {
-                console.warn("Using cached todo data due to fetch error.");
-            }
-        } finally {
-            setLocalLoading(false, isBackground);
-        }
-    };
-
-    const fetchSingleCourseTodo = async (courseId) => {
-        if (!courseId) return;
-        setLocalLoading(true, true);
-        try {
-            const res = await axios.get(`/api/courses/${courseId}/todos`);
-            const newData = res.data; // Object or null
-
-            // Update state: replace the course data in the array
-            setData(prevData => {
-                const existingIndex = prevData.findIndex(c => c.courseId === courseId);
-                let nextData = [...prevData];
-                
-                if (newData) {
-                    if (existingIndex >= 0) {
-                        nextData[existingIndex] = newData;
-                    } else {
-                        nextData.push(newData);
-                    }
-                } else {
-                    if (existingIndex >= 0) nextData.splice(existingIndex, 1);
-                }
-                
-                // Update cache
-                dbSet('todo_cache_data', nextData);
-                return nextData;
-            });
-
-            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            if (onUpdate) onUpdate(now);
-
-        } catch (err) {
-            console.error("Failed to update single course", err);
-        } finally {
-            setLocalLoading(false, true);
-        }
-    };
-
-    // --- DATA PROCESSING ---
-    
-    const filteredData = React.useMemo(() => selectedCourseId 
-        ? data.filter(c => c.courseId === selectedCourseId) 
-        : data, [data, selectedCourseId]);
-
-    // 1. Extract all unique assignments
-    const allAssignments = React.useMemo(() => filteredData.flatMap(course => {
-        const groups = {};
-        course.todos.forEach(todo => {
-            // Apply exclude filters (Assignment & Topic)
-            if (matchesFilterList(todo.workTitle, excludeFilters)) return;
-            if (matchesFilterList(todo.topicName, excludeTopicFilters)) return;
-
-            if (!groups[todo.workId]) {
-                groups[todo.workId] = {
-                    id: todo.workId,
-                    title: todo.workTitle,
-                    courseId: course.courseId,
-                    courseName: course.courseName,
-                    topicId: todo.topicId || 'none',
-                    topicName: todo.topicName || 'Övrigt',
-                    maxPoints: todo.maxPoints,
-                    studentCount: course.studentCount,
-                    latestUpdate: 0,
-                    pending: [],
-                    done: [],
-                    other: []
-                };
-            }
-            
-            // Categorize
-            if (todo.state === 'TURNED_IN') {
-                groups[todo.workId].pending.push(todo);
-                if (todo.updateTime) {
-                    const time = new Date(todo.updateTime).getTime();
-                    if (time > groups[todo.workId].latestUpdate) {
-                        groups[todo.workId].latestUpdate = time;
-                    }
-                }
-            } else if (todo.state === 'RETURNED' || (typeof todo.assignedGrade !== 'undefined' && todo.assignedGrade !== null)) {
-                groups[todo.workId].done.push(todo);
-            } else {
-                groups[todo.workId].other.push(todo);
-            }
-        });
-        return Object.values(groups);
-    }), [filteredData, excludeFilters, excludeTopicFilters]);
-
-    // 2. Filter and Sort
-    const sortedAssignments = React.useMemo(() => allAssignments
-        .filter(a => {
-            if (hideEmptyAssignments && a.pending.length === 0) return false;
-            
-            // New consistent filter logic
-            const isGraded = a.maxPoints && a.maxPoints > 0;
-            if (assignmentFilter === 'graded' && !isGraded) return false;
-            if (assignmentFilter === 'ungraded' && isGraded) return false;
-
-            if (filterText && !a.title.toLowerCase().includes(filterText.toLowerCase())) return false;
-            return true;
-        })
-        .sort((a, b) => {
-            if (sortType === 'name-asc') return a.title.localeCompare(b.title, 'sv');
-            if (sortType === 'date-desc') return (b.latestUpdate || 0) - (a.latestUpdate || 0);
-            if (sortType === 'date-asc') return (a.latestUpdate || 0) - (b.latestUpdate || 0);
-            return 0;
-        }), [allAssignments, hideEmptyAssignments, assignmentFilter, filterText, sortType]);
-
-    // 3. Group sorted assignments into topics
-    const { topicGroups, visibleAssignments } = React.useMemo(() => {
-        const groups = [];
-        const topicsMap = {};
-
-        sortedAssignments.forEach(assign => {
-            const tKey = `${assign.courseId}-${assign.topicId}`;
-            if (!topicsMap[tKey]) {
-                topicsMap[tKey] = {
-                    id: tKey,
-                    name: assign.topicName,
-                    courseName: assign.courseName,
-                    assignments: []
-                };
-                groups.push(topicsMap[tKey]);
-            }
-            topicsMap[tKey].assignments.push(assign);
-        });
-
-        const flatList = groups.flatMap(t => t.assignments);
-        return { topicGroups: groups, visibleAssignments: flatList };
-    }, [sortedAssignments]);
-
-    const selectedGroup = React.useMemo(() => selectedWorkKey 
+    // Selection Logic
+    const selectedGroup = useMemo(() => selectedWorkKey 
         ? sortedAssignments.find(g => `${g.courseId}-${g.id}` === selectedWorkKey)
         : null, [selectedWorkKey, sortedAssignments]);
 
-    // --- HOOKS ---
-
-    // Effect to auto-select first assignment
+    // Auto-select first item
     useEffect(() => {
         if (!loading && sortedAssignments.length > 0) {
             const exists = sortedAssignments.some(g => `${g.courseId}-${g.id}` === selectedWorkKey);
             if (!selectedWorkKey || !exists) {
                 const firstKey = `${sortedAssignments[0].courseId}-${sortedAssignments[0].id}`;
                 setSelectedWorkKey(firstKey);
-                localStorage.setItem('todo_last_selected_work', firstKey);
             }
         }
     }, [loading, sortedAssignments.length, selectedCourseId]);
-
-    // Persist selection
-    useEffect(() => {
-        if (selectedWorkKey) {
-            localStorage.setItem('todo_last_selected_work', selectedWorkKey);
-        }
-    }, [selectedWorkKey]);
 
     // Keyboard navigation
     useEffect(() => {
@@ -263,13 +57,9 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
             const currentIndex = visibleAssignments.findIndex(g => `${g.courseId}-${g.id}` === selectedWorkKey);
             let nextIndex;
 
-            if (currentIndex === -1) {
-                nextIndex = 0;
-            } else if (e.key === 'ArrowDown') {
-                nextIndex = currentIndex < visibleAssignments.length - 1 ? currentIndex + 1 : 0;
-            } else {
-                nextIndex = currentIndex > 0 ? currentIndex - 1 : visibleAssignments.length - 1;
-            }
+            if (currentIndex === -1) nextIndex = 0;
+            else if (e.key === 'ArrowDown') nextIndex = currentIndex < visibleAssignments.length - 1 ? currentIndex + 1 : 0;
+            else nextIndex = currentIndex > 0 ? currentIndex - 1 : visibleAssignments.length - 1;
 
             const nextGroup = visibleAssignments[nextIndex];
             const nextKey = `${nextGroup.courseId}-${nextGroup.id}`;
@@ -285,29 +75,23 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedWorkKey, visibleAssignments]);
 
-    // --- RENDERING ---
-
     return (
         <div className={`container-fluid p-0 h-100 d-flex flex-column position-relative ${isRefreshing ? 'opacity-50' : ''}`} style={{transition: 'opacity 0.2s'}}>
             
             <TodoToolbar 
-                sortType={sortType} 
-                setSortType={setSortType} 
-                hideEmptyAssignments={hideEmptyAssignments} 
-                setHideEmptyAssignments={setHideEmptyAssignments}
-                assignmentFilter={assignmentFilter}
-                setAssignmentFilter={setAssignmentFilter}
-                filterText={filterText}
-                setFilterText={setFilterText}
+                sortType={sortType} setSortType={setSortType} 
+                hideEmptyAssignments={hideEmptyAssignments} setHideEmptyAssignments={setHideEmptyAssignments}
+                assignmentFilter={assignmentFilter} setAssignmentFilter={setAssignmentFilter}
+                filterText={filterText} setFilterText={setFilterText}
             />
 
             <div className="d-flex flex-grow-1 overflow-hidden">
                 {loading && data.length === 0 ? (
                     <LoadingSpinner />
                 ) : error ? (
-                    <ErrorState error={error} onRetry={() => fetchTodos()} />
+                    <ErrorState error={error} onRetry={refetch} />
                 ) : sortedAssignments.length === 0 ? (
-                    <EmptyState isRefreshing={isRefreshing} onRefresh={() => fetchTodos()} />
+                    <EmptyState isRefreshing={isRefreshing} onRefresh={refetch} />
                 ) : (
                     <>
                         <div className="col-md-4 col-lg-3 border-end bg-light overflow-auto h-100 shadow-sm" style={{zIndex: 2}}>
