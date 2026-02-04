@@ -238,70 +238,78 @@ app.post('/api/students/import', checkAuth, async (req, res) => {
     console.log(`[DEBUG] Processing RAW student import (DryRun: ${isDryRun})...`);
 
     try {
-        // 1. Parse Text Logic (No Google Fetch)
+        // 2. Parse Text Logic (Strict 3-column validation)
         const parseAndInsert = async () => {
             const lines = text.split('\n');
             let currentGroup = 'Osorterade';
-            const promises = [];
+            let hasValidHeader = false;
+            
+            const matches = [];
+            const failures = [];
 
-            let stmt = null;
-            if (!isDryRun) {
-                // We use a temporary ID logic if we don't have Google ID yet. 
-                // Since google_id is PK, we use "TEMP_GroupName_StudentName"
-                stmt = db.prepare('INSERT OR REPLACE INTO student_classes (google_id, class_name, group_name, student_name) VALUES (?, ?, ?, ?)');
+            // Detect Header & Group
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.toLowerCase().includes('grupplista')) {
+                    currentGroup = trimmed.replace(/grupplista/i, '').trim();
+                }
+                const parts = trimmed.toLowerCase().split(/[\t\s]+/);
+                if (parts.includes('nr') && parts.includes('klass') && parts.includes('namn')) {
+                    hasValidHeader = true;
+                }
             }
 
-            const matches = [];
-            const failures = []; // Should be 0 now basically
+            if (!hasValidHeader) {
+                return { isValid: false, error: 'Rubriken saknar nödvändiga kolumner (Nr, Klass, Namn).' };
+            }
 
             for (const line of lines) {
                 const trimmed = line.trim();
-                if (!trimmed) continue;
-
-                if (trimmed.toLowerCase().includes('grupplista')) {
-                    currentGroup = trimmed.replace(/grupplista/i, '').trim();
-                    continue;
-                }
+                if (!trimmed || trimmed.toLowerCase().includes('grupplista')) continue;
 
                 const parts = trimmed.split(/[\t\s]+/);
-                
-                if (parts.length === 0) continue;
-                if (parts.some(p => p.toLowerCase() === 'nr') && parts.some(p => p.toLowerCase() === 'klass')) continue;
+                if (parts.some(p => p.toLowerCase() === 'nr')) continue; // Skip header rad
 
                 const firstColIsNumber = /^\d+$/.test(parts[0]);
-                if (!firstColIsNumber || parts.length < 3) continue;
+                if (!firstColIsNumber) continue;
+
+                if (parts.length < 3 || !parts[1] || !parts[2]) {
+                    return { isValid: false, error: `Raden "${trimmed}" saknar data.` };
+                }
 
                 const className = parts[1]; 
-                // Keep raw name order "Alshammar Oscar" for display
-                const nameRaw = parts.slice(2).join(' '); 
+                const nameRaw = parts.slice(2).join(' ').trim(); 
                 
-                // Generate a unique temporary ID so we can save it
-                // Format: TEMP_<Group>_<Name> (Normalized)
+                if (className.length < 2 || nameRaw.length < 2) {
+                    return { isValid: false, error: `Ogiltig data på rad: ${trimmed}` };
+                }
+
                 const nameNorm = nameRaw.replace(/[^a-z0-9]/gi, '');
                 const groupNorm = currentGroup.replace(/[^a-z0-9]/gi, '');
                 const tempId = `TEMP_${groupNorm}_${nameNorm}`;
 
-                if (!isDryRun && stmt) {
-                    const p = new Promise((resolve, reject) => {
-                        stmt.run(tempId, className, currentGroup, nameRaw, (err) => {
-                            if (err) console.error(`[ERROR] Failed to insert ${nameRaw}:`, err.message);
-                            resolve();
-                        });
-                    });
-                    promises.push(p);
-                }
-                
                 matches.push({ name: nameRaw, class: className, googleId: tempId, isTemp: true });
+
+                if (!isDryRun) {
+                    // Sequential Insert - Safer for SQLite locking
+                    await new Promise((resolve, reject) => {
+                        db.run(
+                            'INSERT OR REPLACE INTO student_classes (google_id, class_name, group_name, student_name) VALUES (?, ?, ?, ?)',
+                            [tempId, className, currentGroup, nameRaw],
+                            (err) => {
+                                if (err) console.error(`[ERROR] Insert failed:`, err.message);
+                                resolve(); // Continue even on error
+                            }
+                        );
+                    });
+                }
             }
 
-            if (!isDryRun && stmt) {
-                console.log(`[DEBUG] Awaiting ${promises.length} raw inserts...`);
-                await Promise.all(promises);
-                stmt.finalize();
-                console.log(`[DEBUG] Raw inserts completed.`);
+            if (!isDryRun) {
+                console.log(`[DEBUG] Sequential import completed.`);
             }
             
-            return { matches, failures, groupName: currentGroup };
+            return { isValid: true, matches, failures, groupName: currentGroup };
         };
 
         const result = await parseAndInsert();

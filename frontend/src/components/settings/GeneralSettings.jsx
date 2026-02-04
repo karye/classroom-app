@@ -41,12 +41,11 @@ const GeneralSettings = ({
                         <p className="small text-muted mb-4">
                             Välj vilka klassrum som ska vara aktiva. Inaktiva kurser döljs från scheman, matriser och att-göra-listor.
                         </p>
-                        <div className="bg-white border rounded p-0" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                        <div className="course-list-container" style={{ maxHeight: '400px' }}>
                             {courses.length > 0 ? courses.map(course => (
                                 <div 
                                     key={course.id} 
-                                    className={`d-flex align-items-center p-2 border-bottom hover-bg-light transition-all ${hiddenCourseIds.includes(course.id) ? 'opacity-50' : ''}`} 
-                                    style={{ cursor: 'pointer' }} 
+                                    className={`course-list-item ${hiddenCourseIds.includes(course.id) ? 'opacity-50' : ''}`} 
                                     onClick={() => onToggleCourse(course.id)}
                                 >
                                     <input 
@@ -56,9 +55,9 @@ const GeneralSettings = ({
                                         onChange={() => {}} 
                                         style={{ cursor: 'pointer' }}
                                     />
-                                    <div className="flex-grow-1 lh-1">
-                                        <div className="fw-bold text-dark mb-1" style={{ fontSize: '0.9rem' }}>{course.name}</div>
-                                        {course.section && <div className="small text-muted" style={{ fontSize: '0.75rem' }}>{course.section}</div>}
+                                    <div className="flex-grow-1">
+                                        <div className="course-name mb-1">{course.name}</div>
+                                        {course.section && <div className="course-section">{course.section}</div>}
                                     </div>
                                 </div>
                             )) : <div className="p-4 text-center text-muted italic">Inga kurser hittades.</div>}

@@ -31,12 +31,12 @@ För att visa schemat snyggt används en "Packing Algorithm":
 3.  **Resultat:** Lektioner som krockar visas sida-vid-sida, medan ensamma lektioner tar upp hela bredden.
 
 ### D. Elevkoppling & Namnmatchning (SchoolSoft-import)
-Eftersom Google Classroom inte vet vilken "klass" (t.ex. TE23b) en elev går i, används en importmodul:
+För att hantera import av stora elevlistor säkert används en flerstegsprocess:
 
-1.  **Steg 1 (Raw Import):** Text parsas för att hitta rader som börjar med siffror. Namn och klass sparas med ett `TEMP_ID` i databasen.
-2.  **Steg 2 (Matching):** När en användare kopplar gruppen till en Google-kurs hämtas kursens deltagarlista.
-3.  **Algoritm:** Namn normaliseras (små bokstäver, inga specialtecken, bokstäverna sorteras alfabetiskt). Detta gör att "López Sandor" matchar "Sandor Lopez" tillförlitligt.
-4.  **Uppdatering:** Vid matchning byts `TEMP_ID` ut mot elevens riktiga `google_id`, vilket aktiverar klassvisningen i hela appen.
+1.  **Validering:** Texten analyseras för att hitta rubriker (Nr, Klass, Namn). Om obligatoriska kolumner saknas avbryts importen.
+2.  **Sekventiell Skrivning:** Varje elev sparas till databasen en i taget (`await db.run`) istället för parallellt. Detta förhindrar att SQLite låser sig ("Database Locked") vid stora importer.
+3.  **Temp ID:** Elever sparas först med ett `TEMP_ID` baserat på grupp och namn.
+4.  **Matchning:** Vid koppling mot en Google-kurs hämtas *endast* den kursens elever. Namn normaliseras och matchas. Vid träff uppdateras databasraden med det riktiga `google_id`.
 
 ---
 

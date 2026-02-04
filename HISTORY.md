@@ -6,14 +6,21 @@ Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard"
 
 ### ✨ Nya Funktioner
 *   **Elevregister 2.0 (SchoolSoft-import):**
-    *   Möjlighet att klistra in grupplistor direkt från SchoolSoft för att koppla elever till klasser (t.ex. TE23b).
+    *   **Robust Import:** Strikt validering av format (Nr/Klass/Namn) och automatisk detektering av 2- eller 3-kolumnslistor.
+    *   **Säkerhet:** Sekventiell databashantering för att förhindra server-låsningar vid stora importer.
     *   **Tvåstegsimport:** Steg 1: Råimport av text (blixtsnabb). Steg 2: Manuell koppling och matchning mot Google Classroom.
     *   **Smart Matchning:** Poängbaserad algoritm som matchar namn ("Efternamn Förnamn" ↔ "Förnamn Efternamn") med stöd för svenska tecken och accenter.
     *   **Hantering:** Vy med två kolumner för att bläddra bland grupper, se elever, radera kopplingar eller hela grupper.
+    *   **Feedback:** Tydliga ikoner (Grön/Gul gubbe) visar matchningsstatus direkt i listan.
 *   **Inställningar 2.0:** Flyttat inställningar från en modal till en **egen fullskärmsvy**.
     *   Lagt till flikar: "Anpassning", "Systemdata" och "Elevregister".
     *   **Systemdata:** Ny dashboard som visar databasstorlek, cache-status och server-anteckningar per kurs.
     *   Möjlighet att rensa cache för specifika kurser.
+
+### 🎨 Design & UX
+*   **Enhetlig Elevvisning:** Standardiserat format `Namn (Klass)` i Matris, Todo och Inställningar.
+*   **Centraliserad CSS:** Skapat globala klasser (`.student-meta`, `.course-list-item`) för enhetligt utseende och enklare underhåll.
+*   **Förbättrad Feedback:** Bytt ut `alert()` mot informativa modaler för importresultat och raderingsbekräftelse.
 
 ### 🛠 Arkitektur & Refaktorisering
 *   **Komponentuppdelning:** Brutit ut den massiva `SettingsView.jsx` i mindre, mer lätthanterliga filer:

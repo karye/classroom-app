@@ -58,27 +58,32 @@ Din inkorg för rättning.
 
 ### E. Inställningar (Settings View)
 En dedikerad vy för konfiguration.
-*   **Flik: Elevregister:**
-    *   **Importera:** Klistra in textlistor (t.ex. från SchoolSoft).
-    *   **Koppla:** Dropdown för att länka en importerad grupp till en specifik Google-kurs.
-    *   **Matcha:** Knapp för att översätta namn till riktiga Google ID:n via Classroom API.
-    *   **Tvåkolumnsvy:** Bläddra bland grupper till vänster och se elevers klassnamn till höger.
-
+*   **Flik: Anpassning:**
+    *   Hantera vilka kurser som ska visas (Dölj gamla).
+    *   Sätt globala filter för att dölja specifika uppgifter eller ämnen.
 *   **Flik: Systemdata:**
     *   Överblick över lagringsanvändning (Cache & Databas).
     *   Statistiktabell per kurs.
     *   Knappar för att rensa cache vid problem.
+*   **Flik: Elevregister:**
+    *   **Importera:** Klistra in textlistor (SchoolSoft). Stödjer både 2- och 3-kolumnsformat med strikt validering.
+    *   **Koppla:** Dropdown för att länka en importerad grupp till en specifik Google-kurs.
+    *   **Matcha:** Knapp för att översätta namn till riktiga Google ID:n.
+    *   **Ikoner:** ✅ Grön bock (Matchad), ⚠️ Gul triangel (Ej matchad/Temp).
 
 ---
 
-## 3. Designsystem
+## 4. Designsystem
+
+### Elevlistor
+En konsekvent design används i alla vyer (Matris, Todo, Inställningar) för att visa elever:
+*   **Namn:** Fet stil.
+*   **Klass:** Inom parentes, mindre och grå text (t.ex. `(TE23b)`).
+*   **Avatar:** Cirkel med första bokstav eller bild.
 
 ### Status-piller (StatusBadge)
 En gemensam komponent används överallt för att visa status:
 *   🟢 **Inlämnad:** Grön bakgrund/text + bock.
-*   🔵 **Klar:** Blå bakgrund/text + dubbelbock.
-*   ⚪ **Ej inlämnad:** Grå bakgrund/text + streck.
-*   🔴 **Sen:** Röd tilläggs-badge.
 
 ### Felhantering & Offline
 Appen är byggd med "Offline-First"-tänk:

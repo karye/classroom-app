@@ -10,6 +10,7 @@ const StudentRegistry = ({ courses }) => {
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [groupMappings, setGroupMappings] = useState({});
     const [groupToDelete, setGroupToDelete] = useState(null);
+    const [syncResult, setSyncResult] = useState(null); // { message, matched, total }
 
     useEffect(() => {
         fetchStudentClasses();
@@ -104,8 +105,12 @@ const StudentRegistry = ({ courses }) => {
         setIsSyncing(true);
         try {
             const res = await axios.post('/api/groups/sync', { groupName: selectedGroup, courseId });
-            alert(res.data.message);
-            fetchStudentClasses(); // Refresh to see updated names/ids if any changed
+            setSyncResult({
+                message: res.data.message,
+                matched: res.data.matched,
+                total: res.data.total
+            });
+            fetchStudentClasses();
         } catch (err) {
             console.error("Sync failed", err);
             alert("Kunde inte synka elever.");
@@ -124,6 +129,8 @@ const StudentRegistry = ({ courses }) => {
         });
         return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
     }, [studentList]);
+
+    const selectedGroupData = groupedStudents.find(g => g[0] === selectedGroup)?.[1] || [];
 
     return (
         <div className="animate-fade-in">
@@ -194,59 +201,70 @@ const StudentRegistry = ({ courses }) => {
                     </div>
 
                     {/* Right: Students */}
-                    <div className="col-8 overflow-auto" style={{ maxHeight: '500px' }}>
-                        <div className="p-2 border-bottom bg-white d-flex justify-content-between align-items-center sticky-top">
+                    <div className="col-8 overflow-auto d-flex flex-column" style={{ maxHeight: '500px' }}>
+                        <div className="p-2 border-bottom bg-white d-flex justify-content-between align-items-center sticky-top shadow-sm">
                             <div className="fw-bold text-muted small text-uppercase">
                                 Elever i {selectedGroup || '...'}
-                                {selectedGroup && <span className="text-muted fw-normal ms-2">({groupedStudents.find(g => g[0] === selectedGroup)?.[1].length} st)</span>}
+                                {selectedGroup && <span className="text-muted fw-normal ms-2">({selectedGroupData.length} st)</span>}
                             </div>
                             
-                                                                        {selectedGroup && (
-                                                                            <div className="d-flex align-items-center gap-2">
-                                                                                <select 
-                                                                                    className="form-select form-select-sm border-primary" 
-                                                                                    style={{ width: '200px' }}
-                                                                                    value={groupMappings[selectedGroup] || ""}
-                                                                                    onChange={(e) => handleMapGroup(selectedGroup, e.target.value)}
-                                                                                >
-                                                                                    <option value="">-- Koppla till Classroom --</option>
-                                                                                    {courses.map(c => (
-                                                                                        <option key={c.id} value={c.id}>{c.name}</option>
-                                                                                    ))}
-                                                                                </select>
-                                                                                <button 
-                                                                                    className="btn btn-primary btn-sm d-flex align-items-center gap-1"
-                                                                                    onClick={handleSyncGroup}
-                                                                                    disabled={!groupMappings[selectedGroup] || isSyncing}
-                                                                                    title="Matcha elever i listan mot Classroom"
-                                                                                >
-                                                                                    {isSyncing ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-arrow-repeat"></i>}
-                                                                                    Matcha
-                                                                                </button>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                    {selectedGroup ? (
-                            <ul className="list-group list-group-flush">
-                                {groupedStudents.find(g => g[0] === selectedGroup)?.[1].map(student => (
-                                    <li key={student.google_id} className="list-group-item d-flex justify-content-between align-items-center px-3 py-2">
-                                        <div className="d-flex align-items-center gap-2 overflow-hidden">
-                                            <i className="bi bi-person text-muted opacity-50"></i>
-                                            <span className="text-truncate fw-bold">{student.student_name}</span>
-                                            <span className="badge bg-light text-muted border small">{student.class_name}</span>
-                                        </div>
-                                        <button className="btn btn-link text-danger p-0 opacity-25 hover-opacity-100" onClick={() => handleDeleteStudent(student.google_id)} title="Ta bort koppling">
-                                            <i className="bi bi-x-circle-fill"></i>
-                                        </button>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div className="h-100 d-flex flex-column align-items-center justify-content-center text-muted opacity-50 p-5">
-                                <i className="bi bi-arrow-left-circle fs-1 mb-3"></i>
-                                <p>Välj en grupp till vänster</p>
-                            </div>
-                        )}
+                            {selectedGroup && (
+                                <div className="d-flex align-items-center gap-2">
+                                    <select 
+                                        className="form-select form-select-sm border-primary" 
+                                        style={{ width: '200px' }}
+                                        value={groupMappings[selectedGroup] || ""}
+                                        onChange={(e) => handleMapGroup(selectedGroup, e.target.value)}
+                                    >
+                                        <option value="">-- Koppla till Classroom --</option>
+                                        {courses.map(c => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                    <button 
+                                        className="btn btn-primary btn-sm d-flex align-items-center gap-1 fw-bold"
+                                        onClick={handleSyncGroup}
+                                        disabled={!groupMappings[selectedGroup] || isSyncing}
+                                        title="Matcha elever i listan mot Classroom"
+                                    >
+                                        {isSyncing ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-arrow-repeat"></i>}
+                                        Matcha
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex-grow-1 overflow-auto bg-white">
+                            {selectedGroup ? (
+                                <ul className="list-group list-group-flush">
+                                    {selectedGroupData.map((student, index) => {
+                                        const isTemp = String(student.google_id).startsWith('TEMP_');
+                                        return (
+                                            <li key={student.google_id} className="list-group-item d-flex justify-content-between align-items-center px-3 py-1 hover-bg-light transition-all" style={{ minHeight: '35px' }}>
+                                                <div className="d-flex align-items-center gap-2 overflow-hidden">
+                                                    <span className="text-muted small" style={{ minWidth: '20px' }}>{index + 1}.</span>
+                                                    <div className={`rounded-circle border d-flex align-items-center justify-content-center flex-shrink-0 ${isTemp ? 'bg-warning bg-opacity-10 border-warning text-warning' : 'bg-success bg-opacity-10 border-success text-success'}`} style={{ width: '24px', height: '24px' }} title={isTemp ? "Ej matchad" : "Matchad"}>
+                                                        <i className="bi bi-person" style={{ fontSize: '0.8rem' }}></i>
+                                                    </div>
+                                                    <div className="text-truncate">
+                                                        <span className={`fw-bold ${isTemp ? 'text-muted' : 'text-dark'}`}>{student.student_name}</span>
+                                                        <span className="student-meta">({student.class_name})</span>
+                                                    </div>
+                                                </div>
+                                                <button className="btn btn-link text-danger p-0 opacity-25 hover-opacity-100" onClick={() => handleDeleteStudent(student.google_id)} title="Ta bort koppling">
+                                                    <i className="bi bi-x-circle-fill"></i>
+                                                </button>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            ) : (
+                                <div className="h-100 d-flex flex-column align-items-center justify-content-center text-muted opacity-50 p-5">
+                                    <i className="bi bi-arrow-left-circle fs-1 mb-3"></i>
+                                    <p>Välj en grupp till vänster</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             ) : (
@@ -291,36 +309,51 @@ const StudentRegistry = ({ courses }) => {
                                 <button type="button" className="btn-close" onClick={() => setImportPreview(null)}></button>
                             </div>
                             <div className="modal-body p-0">
-                                {importPreview.matches.length > 0 && (
-                                    <div className="p-3">
-                                        <h6 className="text-success fw-bold"><i className="bi bi-check-circle-fill me-2"></i>{importPreview.matches.length} elever matchade</h6>
-                                        <div className="border rounded overflow-hidden">
-                                            <table className="table table-sm table-striped mb-0 small">
-                                                <thead className="table-light">
-                                                    <tr><th>Elev (Google)</th><th>Klass (Import)</th></tr>
-                                                </thead>
-                                                <tbody>
-                                                    {importPreview.matches.map((m, i) => (
-                                                        <tr key={i}><td>{m.name}</td><td>{m.class}</td></tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                {importPreview.isValid === false ? (
+                                    <div className="p-4 text-center">
+                                        <i className="bi bi-x-octagon-fill text-danger display-4 mb-3 d-block"></i>
+                                        <h5 className="fw-bold text-danger">Importen kan inte genomföras</h5>
+                                        <div className="alert alert-danger border-0 small mt-3">
+                                            {importPreview.error}
                                         </div>
+                                        <p className="text-muted small">
+                                            Säkerställ att listan innehåller rubrikerna <strong>Nr</strong>, <strong>Klass</strong> och <strong>Namn</strong> samt att varje rad har data i alla kolumner.
+                                        </p>
                                     </div>
-                                )}
-                                
-                                {importPreview.failures.length > 0 && (
-                                    <div className="p-3 bg-warning bg-opacity-10 border-top border-warning">
-                                        <h6 className="text-warning fw-bold"><i className="bi bi-exclamation-triangle-fill me-2"></i>{importPreview.failures.length} kunde inte matchas</h6>
-                                        <p className="small mb-2">Dessa namn hittades inte i Google Classroom. Kontrollera stavningen eller om eleven finns i dina kurser.</p>
-                                        <ul className="list-group list-group-flush small border rounded">
-                                            {importPreview.failures.map((f, i) => (
-                                                <li key={i} className="list-group-item bg-transparent text-muted">
-                                                    {f.rawName} <span className="badge bg-secondary opacity-50 ms-2">{f.class}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
+                                ) : (
+                                    <>
+                                        {importPreview.matches.length > 0 && (
+                                            <div className="p-3">
+                                                <h6 className="text-success fw-bold"><i className="bi bi-check-circle-fill me-2"></i>{importPreview.matches.length} elever matchade</h6>
+                                                <div className="border rounded overflow-hidden">
+                                                    <table className="table table-sm table-striped mb-0 small">
+                                                        <thead className="table-light">
+                                                            <tr><th>Elev (Google)</th><th>Klass (Import)</th></tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {importPreview.matches.map((m, i) => (
+                                                                <tr key={i}><td>{m.name}</td><td>{m.class}</td></tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {importPreview.failures.length > 0 && (
+                                            <div className="p-3 bg-warning bg-opacity-10 border-top border-warning">
+                                                <h6 className="text-warning fw-bold"><i className="bi bi-exclamation-triangle-fill me-2"></i>{importPreview.failures.length} kunde inte matchas</h6>
+                                                <p className="small mb-2">Dessa namn hittades inte i Google Classroom. Kontrollera stavningen eller om eleven finns i dina kurser.</p>
+                                                <ul className="list-group list-group-flush small border rounded">
+                                                    {importPreview.failures.map((f, i) => (
+                                                        <li key={i} className="list-group-item bg-transparent text-muted">
+                                                            {f.rawName} <span className="badge bg-secondary opacity-50 ms-2">{f.class}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                             <div className="modal-footer bg-light">
@@ -329,7 +362,7 @@ const StudentRegistry = ({ courses }) => {
                                     type="button" 
                                     className="btn btn-primary px-4 fw-bold" 
                                     onClick={confirmImport}
-                                    disabled={importPreview.matches.length === 0 || isImporting}
+                                    disabled={importPreview.isValid === false || importPreview.matches.length === 0 || isImporting}
                                 >
                                     {isImporting ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-save me-2"></i>}
                                     Spara till databas
@@ -363,6 +396,36 @@ const StudentRegistry = ({ courses }) => {
                             <div className="modal-footer border-top-0 bg-light">
                                 <button type="button" className="btn btn-outline-secondary" onClick={() => setGroupToDelete(null)}>Avbryt</button>
                                 <button type="button" className="btn btn-danger px-4 fw-bold" onClick={confirmDeleteGroup}>Radera</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Sync Result Modal */}
+            {syncResult && (
+                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 2000 }}>
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content shadow-lg border-0">
+                            <div className="modal-header bg-primary text-white border-bottom-0">
+                                <h5 className="modal-title fw-bold">
+                                    <i className="bi bi-arrow-repeat me-2"></i>
+                                    Matchning klar
+                                </h5>
+                                <button type="button" className="btn-close btn-close-white" onClick={() => setSyncResult(null)}></button>
+                            </div>
+                            <div className="modal-body p-4 text-center">
+                                <div className="mb-3">
+                                    <i className={`bi ${syncResult.matched === syncResult.total ? 'bi-check-circle text-success' : 'bi-info-circle text-warning'} display-1`}></i>
+                                </div>
+                                <h4 className="fw-bold">{syncResult.message}</h4>
+                                <p className="text-muted mb-0">
+                                    Systemet har nu kopplat {syncResult.matched} elever till deras Google ID:n. 
+                                    Deras klassnamn kommer nu att synas i Matrisen och Todo-vyn.
+                                </p>
+                            </div>
+                            <div className="modal-footer border-top-0 bg-light">
+                                <button type="button" className="btn btn-primary px-5 fw-bold" onClick={() => setSyncResult(null)}>Stäng</button>
                             </div>
                         </div>
                     </div>

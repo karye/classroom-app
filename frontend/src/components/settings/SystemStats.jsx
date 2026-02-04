@@ -135,8 +135,8 @@ const SystemStats = ({ courses }) => {
                             ) : storageStats && storageStats.courses.length > 0 ? (
                                 storageStats.courses.map(course => (
                                     <tr key={course.id}>
-                                        <td className="ps-4 fw-bold">{course.name}</td>
-                                        <td className="text-muted small">
+                                        <td className="ps-4 fw-bold course-name">{course.name}</td>
+                                                        <td className="text-muted small">
                                             {course.lastSync ? new Date(course.lastSync).toLocaleString() : <span className="badge bg-light text-muted border">Aldrig</span>}
                                         </td>
                                         <td><span className="badge bg-light text-dark border">{formatBytes(course.size)}</span></td>
