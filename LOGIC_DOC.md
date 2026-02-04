@@ -30,6 +30,14 @@ För att visa schemat snyggt används en "Packing Algorithm":
 2.  **Kolumner:** Inom varje kluster fördelas händelserna i kolumner för att maximera bredden utan att överlappa visuellt.
 3.  **Resultat:** Lektioner som krockar visas sida-vid-sida, medan ensamma lektioner tar upp hela bredden.
 
+### D. Elevkoppling & Namnmatchning (SchoolSoft-import)
+Eftersom Google Classroom inte vet vilken "klass" (t.ex. TE23b) en elev går i, används en importmodul:
+
+1.  **Steg 1 (Raw Import):** Text parsas för att hitta rader som börjar med siffror. Namn och klass sparas med ett `TEMP_ID` i databasen.
+2.  **Steg 2 (Matching):** När en användare kopplar gruppen till en Google-kurs hämtas kursens deltagarlista.
+3.  **Algoritm:** Namn normaliseras (små bokstäver, inga specialtecken, bokstäverna sorteras alfabetiskt). Detta gör att "López Sandor" matchar "Sandor Lopez" tillförlitligt.
+4.  **Uppdatering:** Vid matchning byts `TEMP_ID` ut mot elevens riktiga `google_id`, vilket aktiverar klassvisningen i hela appen.
+
 ---
 
 ## 2. Uppgiftslogik & Visualisering

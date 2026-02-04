@@ -73,8 +73,11 @@ const MatrixTable = ({
                                             <i className="bi bi-person" style={{ fontSize: '0.8rem' }}></i>
                                         </div>
                                     )}
-                                    <span className="fw-bold text-dark text-truncate me-1" style={{ maxWidth: '150px' }}>{student.profile.name.fullName}</span>
-                                    {atRisk && <i className="bi bi-exclamation-triangle-fill text-danger" title="Varning"></i>}
+                                    <div className="d-flex flex-column text-truncate">
+                                        <span className="fw-bold text-dark text-truncate" style={{ maxWidth: '150px' }}>{student.profile.name.fullName}</span>
+                                        {student.studentClass && <span className="text-muted" style={{ fontSize: '0.65rem' }}>{student.studentClass}</span>}
+                                    </div>
+                                    {atRisk && <i className="bi bi-exclamation-triangle-fill text-danger ms-1" title="Varning"></i>}
                                 </div>
                             </td>
                             {groupedWork.map(group => {

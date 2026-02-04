@@ -33,7 +33,10 @@ const TodoTable = ({ list, title, colorClass, emptyMsg }) => {
                                                 <i className="bi bi-person" style={{fontSize: '0.8rem'}}></i>
                                             </div>
                                         )}
-                                        <span className={`fw-bold text-truncate ${todo.state === 'CREATED' || todo.state === 'NEW' ? 'text-muted' : 'text-dark'}`} style={{maxWidth: '180px'}}>{todo.studentName}</span>
+                                        <div className="d-flex flex-column text-truncate">
+                                            <span className={`fw-bold text-truncate ${todo.state === 'CREATED' || todo.state === 'NEW' ? 'text-muted' : 'text-dark'}`} style={{maxWidth: '180px'}}>{todo.studentName}</span>
+                                            {todo.studentClass && <span className="text-muted" style={{ fontSize: '0.65rem' }}>{todo.studentClass}</span>}
+                                        </div>
                                     </div>
                                 </td>
                                 <td className="py-1" style={{ width: '25%' }}>

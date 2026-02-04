@@ -227,6 +227,259 @@ const checkAuth = (req, res, next) => {
     next();
 };
 
+// --- Student Class Import ---
+
+app.post('/api/students/import', checkAuth, async (req, res) => {
+    const { text } = req.body;
+    const isDryRun = req.query.dryRun === 'true';
+    
+    if (!text) return res.status(400).json({ error: 'No text provided' });
+
+    console.log(`[DEBUG] Processing RAW student import (DryRun: ${isDryRun})...`);
+
+    try {
+        // 1. Parse Text Logic (No Google Fetch)
+        const parseAndInsert = async () => {
+            const lines = text.split('\n');
+            let currentGroup = 'Osorterade';
+            const promises = [];
+
+            let stmt = null;
+            if (!isDryRun) {
+                // We use a temporary ID logic if we don't have Google ID yet. 
+                // Since google_id is PK, we use "TEMP_GroupName_StudentName"
+                stmt = db.prepare('INSERT OR REPLACE INTO student_classes (google_id, class_name, group_name, student_name) VALUES (?, ?, ?, ?)');
+            }
+
+            const matches = [];
+            const failures = []; // Should be 0 now basically
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                if (trimmed.toLowerCase().includes('grupplista')) {
+                    currentGroup = trimmed.replace(/grupplista/i, '').trim();
+                    continue;
+                }
+
+                const parts = trimmed.split(/[\t\s]+/);
+                
+                if (parts.length === 0) continue;
+                if (parts.some(p => p.toLowerCase() === 'nr') && parts.some(p => p.toLowerCase() === 'klass')) continue;
+
+                const firstColIsNumber = /^\d+$/.test(parts[0]);
+                if (!firstColIsNumber || parts.length < 3) continue;
+
+                const className = parts[1]; 
+                // Keep raw name order "Alshammar Oscar" for display
+                const nameRaw = parts.slice(2).join(' '); 
+                
+                // Generate a unique temporary ID so we can save it
+                // Format: TEMP_<Group>_<Name> (Normalized)
+                const nameNorm = nameRaw.replace(/[^a-z0-9]/gi, '');
+                const groupNorm = currentGroup.replace(/[^a-z0-9]/gi, '');
+                const tempId = `TEMP_${groupNorm}_${nameNorm}`;
+
+                if (!isDryRun && stmt) {
+                    const p = new Promise((resolve, reject) => {
+                        stmt.run(tempId, className, currentGroup, nameRaw, (err) => {
+                            if (err) console.error(`[ERROR] Failed to insert ${nameRaw}:`, err.message);
+                            resolve();
+                        });
+                    });
+                    promises.push(p);
+                }
+                
+                matches.push({ name: nameRaw, class: className, googleId: tempId, isTemp: true });
+            }
+
+            if (!isDryRun && stmt) {
+                console.log(`[DEBUG] Awaiting ${promises.length} raw inserts...`);
+                await Promise.all(promises);
+                stmt.finalize();
+                console.log(`[DEBUG] Raw inserts completed.`);
+            }
+            
+            return { matches, failures, groupName: currentGroup };
+        };
+
+        const result = await parseAndInsert();
+        res.json(result);
+
+    } catch (err) {
+        console.error("Import failed:", err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Import failed: ' + err.message });
+        }
+    }
+});
+
+// Get all student class mappings
+app.get('/api/students/classes', checkAuth, (req, res) => {
+    db.all('SELECT * FROM student_classes ORDER BY class_name, student_name', [], (err, rows) => {
+        if (err) {
+            console.error("Fetch classes failed", err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        res.json(rows);
+    });
+});
+
+// Delete a mapping
+app.delete('/api/students/classes/:googleId', checkAuth, (req, res) => {
+    const { googleId } = req.params;
+    db.run('DELETE FROM student_classes WHERE google_id = ?', [googleId], function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ success: true });
+    });
+});
+
+// Delete an entire group
+app.delete('/api/students/groups/:groupName', checkAuth, (req, res) => {
+    const { groupName } = req.params;
+    console.log(`[DEBUG] Deleting group: "${groupName}"`);
+    
+    let sql = 'DELETE FROM student_classes WHERE group_name = ?';
+    let params = [groupName];
+
+    // Special handling for "Osorterade" or legacy data
+    if (groupName === 'Osorterade') {
+        sql = 'DELETE FROM student_classes WHERE group_name = ? OR group_name IS NULL OR group_name = ""';
+    }
+
+    db.run(sql, params, (err) => {
+        if (err) {
+            console.error("Delete group DB error:", err);
+            return res.status(500).json({ error: 'Database error' });
+        }
+        // Success
+        console.log(`[DEBUG] Group "${groupName}" deleted.`);
+        res.json({ success: true });
+    });
+});
+
+// Group Mappings
+app.get('/api/groups/mappings', checkAuth, (req, res) => {
+    db.all('SELECT * FROM group_mappings', [], (err, rows) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json(rows);
+    });
+});
+
+app.post('/api/groups/mappings', checkAuth, (req, res) => {
+    const { groupName, courseId } = req.body;
+    const sql = `INSERT OR REPLACE INTO group_mappings (group_name, course_id) VALUES (?, ?)`;
+    db.run(sql, [groupName, courseId], function(err) {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        res.json({ success: true });
+    });
+});
+
+// Sync/Match students in a group with Google Classroom
+app.post('/api/groups/sync', checkAuth, async (req, res) => {
+    const { groupName, courseId } = req.body;
+    console.log(`[DEBUG] Syncing group "${groupName}" with course "${courseId}"`);
+
+    try {
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+        
+        // 1. Fetch real students from Google for this SPECIFIC course
+        const sRes = await classroom.courses.students.list({ courseId, pageSize: 100 });
+        const googleStudents = sRes.data.students || [];
+        
+        if (googleStudents.length === 0) {
+            return res.json({ matched: 0, total: 0, message: "Inga elever hittades i Classroom-kursen." });
+        }
+
+        // Create a lookup map for Google students (Normalized Name -> Object)
+        const googleMap = new Map();
+        googleStudents.forEach(s => {
+            if (s.profile && s.profile.name) {
+                // "oscaralshammar"
+                const norm = s.profile.name.fullName.toLowerCase().replace(/[^a-zåäö]/g, '').split('').sort().join('');
+                googleMap.set(norm, { id: s.userId, name: s.profile.name.fullName });
+            }
+        });
+
+        // 2. Fetch current DB students for this group (TEMP ones)
+        // We only want to update those who still have TEMP ids or mismatched IDs
+        db.all('SELECT * FROM student_classes WHERE group_name = ?', [groupName], (err, dbRows) => {
+            if (err) return res.status(500).json({ error: 'DB Read Error' });
+
+            let matchedCount = 0;
+            const updates = [];
+
+            dbRows.forEach(row => {
+                // Normalize the DB name "Alshammar Oscar" -> "alshammaroscar" -> sort -> "aa...r"
+                const dbNameNorm = (row.student_name || '').toLowerCase().replace(/[^a-zåäö]/g, '').split('').sort().join('');
+                
+                const match = googleMap.get(dbNameNorm);
+                if (match) {
+                    // Found a match!
+                    // If the ID is already correct, do nothing.
+                    // If it's a TEMP id or different, update it.
+                    if (row.google_id !== match.id) {
+                        updates.push({
+                            newId: match.id,
+                            oldId: row.google_id,
+                            newName: match.name // Update name to match Google for consistency
+                        });
+                    }
+                    matchedCount++;
+                }
+            });
+
+            // 3. Apply updates
+            if (updates.length > 0) {
+                const stmt = db.prepare('UPDATE student_classes SET google_id = ?, student_name = ? WHERE google_id = ?');
+                db.serialize(() => {
+                    db.run("BEGIN TRANSACTION");
+                    updates.forEach(u => {
+                        stmt.run(u.newId, u.newName, u.oldId);
+                    });
+                    stmt.finalize();
+                    db.run("COMMIT");
+                });
+            }
+
+            res.json({ 
+                matched: matchedCount, 
+                updated: updates.length, 
+                total: dbRows.length,
+                message: `Matchade ${matchedCount} av ${dbRows.length} elever.`
+            });
+        });
+
+    } catch (error) {
+        console.error("Sync failed:", error);
+        res.status(500).json({ error: 'Sync failed' });
+    }
+});
+
+// Helper to inject student classes
+const injectStudentClasses = async (dataArray, userId) => {
+    return new Promise((resolve, reject) => {
+        db.all('SELECT google_id, class_name FROM student_classes', [], (err, rows) => {
+            if (err) {
+                console.error("Failed to load student classes", err);
+                resolve(dataArray); // Return original on error
+                return;
+            }
+            const classMap = new Map(rows.map(r => [r.google_id, r.class_name]));
+            
+            // Assuming dataArray is list of students or objects with studentId/userId
+            dataArray.forEach(item => {
+                const uid = item.userId || item.studentId; // Handle both formats
+                if (uid && classMap.has(uid)) {
+                    item.studentClass = classMap.get(uid);
+                }
+            });
+            resolve(dataArray);
+        });
+    });
+};
+
 app.get('/api/courses', checkAuth, async (req, res) => {
     try {
         const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
@@ -283,17 +536,17 @@ app.get('/api/courses/:courseId/details', checkAuth, async (req, res) => {
             return { data: { topic: [] } };
         });
 
-        const [studentsRes, courseWorkRes, topicsRes] = await Promise.all([studentsPromise, courseWorkPromise, topicsPromise]);
-        
-        console.log('--- Debug Course Details ---');
-        console.log('Students Status:', studentsRes.status);
-        console.log('Students Data Keys:', Object.keys(studentsRes.data));
-        console.log('Student Count:', studentsRes.data.students ? studentsRes.data.students.length : 0);
-        console.log('CourseWork Count:', courseWorkRes.data.courseWork ? courseWorkRes.data.courseWork.length : 0);
+        const [studentsRes, courseWorkRes, topicsRes, courseRes] = await Promise.all([
+            studentsPromise, 
+            courseWorkPromise, 
+            topicsPromise,
+            classroom.courses.get({ id: courseId })
+        ]);
         
         const students = studentsRes.data.students || [];
         const coursework = courseWorkRes.data.courseWork || [];
         const topics = topicsRes.data.topic || [];
+        const courseSection = courseRes.data.section || '';
 
         // 4. Fetch Submissions for each CourseWork
         // Use global runWithLimit with concurrency 10
@@ -313,11 +566,15 @@ app.get('/api/courses/:courseId/details', checkAuth, async (req, res) => {
 
         const submissions = submissionsArrays.flat();
 
+        // Inject Student Classes
+        await injectStudentClasses(students, req.session.userId);
+
         res.json({
             students,
             coursework,
             submissions,
-            topics
+            topics,
+            courseSection
         });
 
     } catch (error) {
@@ -612,6 +869,7 @@ app.get('/api/courses/:courseId/todos', checkAuth, async (req, res) => {
                 id: sub.id,
                 courseId: course.id,
                 courseName: course.name,
+                courseSection: course.section || '',
                 workId: sub.courseWorkId,
                 workTitle: work.title,
                 workLink: work.alternateLink,
@@ -627,6 +885,10 @@ app.get('/api/courses/:courseId/todos', checkAuth, async (req, res) => {
                                         assignedGrade: sub.assignedGrade,
                                         maxPoints: work.maxPoints
                                     };        }).filter(Boolean);
+
+        if (todoItems.length > 0) {
+            await injectStudentClasses(todoItems, req.session.userId);
+        }
 
         console.log(`[DEBUG] Returning ${todoItems.length} processed todo items`);
 
@@ -732,6 +994,7 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                         id: sub.id,
                         courseId: course.id,
                         courseName: course.name,
+                        courseSection: course.section || '',
                         workId: sub.courseWorkId,
                         workTitle: work.title,
                         workLink: work.alternateLink,
@@ -747,6 +1010,10 @@ app.get('/api/todos', checkAuth, async (req, res) => {
                                                 assignedGrade: sub.assignedGrade,
                                                 maxPoints: work.maxPoints
                                             };                }).filter(Boolean);
+
+                if (todoItems.length > 0) {
+                    await injectStudentClasses(todoItems, req.session.userId);
+                }
 
                 if (todoItems.length === 0) return null;
 

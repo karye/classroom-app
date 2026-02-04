@@ -46,7 +46,7 @@ const TodoDetails = ({ selectedGroup }) => {
                 <div className="overflow-hidden">
                     <h6 className="mb-0 fw-bold text-dark text-truncate" style={{ fontSize: '0.9rem' }}>{selectedGroup.title}</h6>
                     <div className="text-muted" style={{fontSize: '0.75rem'}}>
-                        {selectedGroup.courseName} 
+                        {selectedGroup.courseName} {selectedGroup.assignments?.[0]?.courseSection && <span className="badge bg-light text-muted border ms-1">{selectedGroup.assignments[0].courseSection}</span>}
                         <span className="mx-2 opacity-50">•</span> 
                         <span className="fw-bold text-primary">{selectedGroup.pending.length} att rätta</span> av {selectedGroup.studentCount} elever
                     </div>

@@ -58,9 +58,12 @@ Din inkorg för rättning.
 
 ### E. Inställningar (Settings View)
 En dedikerad vy för konfiguration.
-*   **Flik: Anpassning:**
-    *   Hantera vilka kurser som ska visas (Dölj gamla).
-    *   Sätt globala filter för att dölja specifika uppgifter eller ämnen.
+*   **Flik: Elevregister:**
+    *   **Importera:** Klistra in textlistor (t.ex. från SchoolSoft).
+    *   **Koppla:** Dropdown för att länka en importerad grupp till en specifik Google-kurs.
+    *   **Matcha:** Knapp för att översätta namn till riktiga Google ID:n via Classroom API.
+    *   **Tvåkolumnsvy:** Bläddra bland grupper till vänster och se elevers klassnamn till höger.
+
 *   **Flik: Systemdata:**
     *   Överblick över lagringsanvändning (Cache & Databas).
     *   Statistiktabell per kurs.

@@ -5,30 +5,30 @@ Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard"
 ## 2026-02-03
 
 ### ✨ Nya Funktioner
+*   **Elevregister 2.0 (SchoolSoft-import):**
+    *   Möjlighet att klistra in grupplistor direkt från SchoolSoft för att koppla elever till klasser (t.ex. TE23b).
+    *   **Tvåstegsimport:** Steg 1: Råimport av text (blixtsnabb). Steg 2: Manuell koppling och matchning mot Google Classroom.
+    *   **Smart Matchning:** Poängbaserad algoritm som matchar namn ("Efternamn Förnamn" ↔ "Förnamn Efternamn") med stöd för svenska tecken och accenter.
+    *   **Hantering:** Vy med två kolumner för att bläddra bland grupper, se elever, radera kopplingar eller hela grupper.
 *   **Inställningar 2.0:** Flyttat inställningar från en modal till en **egen fullskärmsvy**.
-    *   Lagt till flikar: "Anpassning" och "Systemdata".
+    *   Lagt till flikar: "Anpassning", "Systemdata" och "Elevregister".
     *   **Systemdata:** Ny dashboard som visar databasstorlek, cache-status och server-anteckningar per kurs.
     *   Möjlighet att rensa cache för specifika kurser.
-*   **Enhetliga Verktygsfält:**
-    *   **Matrisvy:** Ersatt separata checkboxar med en Dropdown ("Alla", "Uppgifter", "Prov"). Tagit bort "Att rätta"-filtret.
-    *   **Todo-vy:** Uppdaterat verktygsfältet för att matcha Matrisvyn (samma Dropdown-logik).
+
+### 🛠 Arkitektur & Refaktorisering
+*   **Komponentuppdelning:** Brutit ut den massiva `SettingsView.jsx` i mindre, mer lätthanterliga filer:
+    *   `GeneralSettings.jsx` (Filter & Kurser)
+    *   `SystemStats.jsx` (Lagring & Data)
+    *   `StudentRegistry.jsx` (Import & Grupphantering)
+*   **Databasförbättringar:** Lagt till tabeller för `student_classes` och `group_mappings` samt automatisk schema-migration i backend.
 
 ### ⚡ Förbättringar & Optimering
 *   **Smart Kalender-matchning:** Implementerat en **poängbaserad algoritm** i backend för att koppla kalenderhändelser till rätt kurs.
     *   Straffar felaktiga sektionskoder (t.ex. EE22A vs EE22B) för att förhindra ihopblandning.
-    *   Ger hög poäng (50p) för exakt gruppmatchning.
-*   **Optimerad Global Synk:**
-    *   "Synka"-knappen i Kalendervyn skickar nu bara med ID på *synliga* kurser till backend.
-    *   Backend filtrerar bort dolda kurser innan bearbetning, vilket snabbar upp processen avsevärt.
-    *   Lagt till en varningsruta ("Bekräfta synk") för att förhindra oavsiktliga tunga körningar.
+*   **Optimerad Global Synk:** Synkar nu bara ID på *synliga* kurser, vilket snabbar upp processen för lärare med många gamla kurser.
 *   **Kalender-interaktion:**
-    *   **Todo-räknare:** Lagt till en röd indikeringssiffra på varje lektion i schemat som visar exakt hur många inlämningar som väntar på rättning i den kursen.
-    *   Klick på en lektion i schemat filtrerar nu sidopanelen ("Att rätta") på den specifika kursen.
-    *   Tydligare visuell feedback på vald lektion.
-
-### 🐛 Buggfixar
-*   Fixat bugg där parallella kurser (samma ämneskod, olika klasser) blandades ihop i schemat.
-*   Fixat inkonsekvent "Synkar..."-indikator i Todo-vyn.
+    *   **Todo-räknare:** Röd siffra på lektioner visar antal väntande inlämningar.
+    *   Klick på lektion filtrerar sidopanelen på den specifika kursen.
 
 ---
 
