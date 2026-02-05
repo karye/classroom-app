@@ -356,6 +356,8 @@ function App() {
                         refreshTrigger={refreshTriggers.schedule || 0}
                         onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} 
                         onLoading={handleLoadingChange}
+                        excludeFilters={excludeFilters}
+                        excludeTopicFilters={excludeTopicFilters}
                     />
                 ) : currentView === 'stream' ? (
                     selectedCourseId ? (

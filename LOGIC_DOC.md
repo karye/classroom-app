@@ -20,7 +20,12 @@ Varje gång ett klassrum väljs eller synkas följs denna kedja:
 3.  **Steg 3 (Google API):** Endast vid manuell synk (`?refresh=true`) hämtas färsk data från Google. Resultatet speglas först till SQLite, sedan till cachen och slutligen till huvudappen.
 
 ### C. Enhetlig Endpoint
-Endpointen `/api/courses/:courseId/details` är nu den "stora" källan som returnerar allt: elever, uppgifter, inlämningar, topics och announcements i ett enda JSON-objekt.
+Endpointen `/api/courses/:courseId/details` är nu den "stora" källan som returnerar allt: elever, uppgifter, inlämningar, topics, announcements och **gradeCategories** i ett enda JSON-objekt.
+
+### D. Stöd för Betygskategorier
+Systemet hämtar nu kursens betygskategorier (t.ex. Prov, Uppgift, Övning) från Google Classroom.
+*   **Koppling:** Varje uppgift kopplas till sin kategori via `gradeCategory.id`.
+*   **Smart kategorisering:** Uppgifter utan kategori i Classroom grupperas automatiskt som "Övningar".
 
 ---
 
@@ -51,7 +56,17 @@ För att korrekt koppla kalenderhändelser till rätt kurs (särskilt vid parall
 
 ---
 
-## 3. Cachnings-strategi
+## 3. Systemstabilitet & Återställning
+
+### A. Nuclear Reset (Total Nollställning)
+Nollställningsfunktionen i inställningarna har byggts om för att vara maximalt robust:
+1.  **Sekventiell radering:** Alla tabeller raderas (`DROP TABLE`) i en garanterad ordning för att rensa bort eventuella inkompatibla scheman.
+2.  **Återskapande:** Databasens struktur byggs upp från grunden igen via en re-runnable `reinitSchema`-funktion.
+3.  **Migrationer:** Automatiska databasmigrationer säkerställer att alla nödvändiga kolumner finns på plats direkt efter start.
+
+---
+
+## 4. Cachnings-strategi
 
 *   **Gemensam nyckel:** `MatrixView` och `StreamView` delar nu på samma cache-nyckel (`course_cache_ID`).
 *   **Aggregerad Todo-cache:** `TodoView` har en egen global cache för "Alla klassrum"-läget, men växlar automatiskt till den centrala sanningen när en enskild kurs väljs.

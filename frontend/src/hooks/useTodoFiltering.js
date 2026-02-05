@@ -59,9 +59,16 @@ export const useTodoFiltering = (data, { selectedCourseId, filterText, assignmen
         .filter(a => {
             if (hideEmptyAssignments && a.pending.length === 0) return false;
             
-            const isGraded = a.maxPoints && a.maxPoints > 0;
-            if (assignmentFilter === 'graded' && !isGraded) return false;
-            if (assignmentFilter === 'ungraded' && isGraded) return false;
+            const categoryName = a.assignments?.[0]?.categoryName?.toLowerCase() || '';
+
+            if (assignmentFilter === 'cat-prov') {
+                return categoryName.includes('prov');
+            } else if (assignmentFilter === 'cat-uppgifter') {
+                return categoryName.includes('uppgift');
+            } else if (assignmentFilter === 'cat-none') {
+                // Match if no category OR if the category contains 'övning'
+                return !categoryName || categoryName.includes('övning');
+            }
 
             if (filterText && !a.title.toLowerCase().includes(filterText.toLowerCase())) return false;
             return true;

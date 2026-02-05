@@ -7,6 +7,7 @@ export const transformDetailsToTodo = (courseId, details) => {
     if (!details || !details.coursework) return null;
     
     const topicsMap = new Map(details.topics?.map(t => [String(t.topicId), t.name]));
+    const categoryMap = new Map(details.gradeCategories?.map(gc => [String(gc.id), gc.name]));
     const studentMap = new Map(details.students?.map(s => [s.userId, s.profile]));
 
     // Fetch course name if missing (try to find it in cache keys or just generic)
@@ -29,6 +30,7 @@ export const transformDetailsToTodo = (courseId, details) => {
             workTitle: work.title,
             topicId: topicId,
             topicName: topicId ? (topicsMap.get(topicId) || 'Övrigt') : 'Övrigt',
+            categoryName: work.gradeCategoryId ? categoryMap.get(String(work.gradeCategoryId)) : null,
             studentId: sub.userId,
             studentName: student.name.fullName,
             studentPhoto: student.photoUrl,

@@ -59,13 +59,17 @@ router.get('/:courseId/details', async (req, res) => {
         const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
 
         if (shouldRefresh) {
-            // A. Fetch everything using pagination helper
-            const [googleStudents, googleWork, googleTopics, googleAnnouncements] = await Promise.all([
+            // A. Fetch everything using pagination helper + the Course object for settings
+            const [googleStudents, googleWork, googleTopics, googleAnnouncements, courseRes] = await Promise.all([
                 fetchAllPages(classroom.courses.students, 'list', { courseId, pageSize: 100 }),
                 fetchAllPages(classroom.courses.courseWork, 'list', { courseId, pageSize: 100 }),
                 fetchAllPages(classroom.courses.topics, 'list', { courseId, pageSize: 100 }).catch(() => []),
-                fetchAllPages(classroom.courses.announcements, 'list', { courseId, pageSize: 100 }).catch(() => [])
+                fetchAllPages(classroom.courses.announcements, 'list', { courseId, pageSize: 100 }).catch(() => []),
+                classroom.courses.get({ id: courseId }).catch(() => ({ data: {} }))
             ]);
+
+            const gradeCategories = courseRes.data?.gradebookSettings?.gradeCategories || [];
+            console.log(`[DEBUG] Course "${courseRes.data?.name}" has ${gradeCategories.length} categories defined:`, gradeCategories.map(g => g.name).join(', '));
 
             // B. Fetch Submissions (Heavy payload, ensure we get all)
             const googleSubmissions = await fetchAllPages(classroom.courses.courseWork.studentSubmissions, 'list', {
@@ -84,6 +88,12 @@ router.get('/:courseId/details', async (req, res) => {
                     googleTopics.forEach(t => tStmt.run(t.topicId, courseId, t.name));
                     tStmt.finalize();
 
+                    // 1b. Grade Categories
+                    db.run("DELETE FROM grade_categories WHERE course_id = ?", [courseId]);
+                    const gcStmt = db.prepare("INSERT INTO grade_categories (id, course_id, name, weight) VALUES (?, ?, ?, ?)");
+                    gradeCategories.forEach(gc => gcStmt.run(gc.id, courseId, gc.name, gc.weight || 0));
+                    gcStmt.finalize();
+
                     // 2. Students & Links
                     const sStmt = db.prepare(`INSERT INTO students (id, full_name, email, photo_url) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET full_name=excluded.full_name, email=excluded.email, photo_url=excluded.photo_url`);
                     googleStudents.forEach(s => sStmt.run(s.userId, s.profile.name.fullName, s.profile.emailAddress, s.profile.photoUrl));
@@ -96,10 +106,16 @@ router.get('/:courseId/details', async (req, res) => {
 
                     // 3. CourseWork
                     db.run("DELETE FROM coursework WHERE course_id = ?", [courseId]);
-                    const cwStmt = db.prepare(`INSERT INTO coursework (id, course_id, topic_id, title, type, max_points, due_date, alternate_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
+                    const cwStmt = db.prepare(`INSERT INTO coursework (id, course_id, topic_id, grade_category_id, title, type, max_points, due_date, alternate_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                    
+                    if (googleWork.length > 0) {
+                        console.log(`[DEBUG] Full dump of first assignment "${googleWork[0].title}":`, JSON.stringify(googleWork[0], null, 2));
+                    }
+
                     googleWork.forEach(cw => {
                         const dueDate = cw.dueDate ? `${cw.dueDate.year}-${String(cw.dueDate.month).padStart(2,'0')}-${String(cw.dueDate.day).padStart(2,'0')}` : null;
-                        cwStmt.run(cw.id, courseId, cw.topicId || null, cw.title, cw.workType || 'ASSIGNMENT', cw.maxPoints ?? null, dueDate, cw.alternateLink);
+                        const catId = cw.gradeCategory?.id || cw.gradeCategoryId || null;
+                        cwStmt.run(cw.id, courseId, cw.topicId || null, catId, cw.title, cw.workType || 'ASSIGNMENT', cw.maxPoints ?? null, dueDate, cw.alternateLink);
                     });
                     cwStmt.finalize();
 
@@ -126,7 +142,7 @@ router.get('/:courseId/details', async (req, res) => {
         }
 
         // Return Data (Full context for all views)
-        const result = { students: [], coursework: [], submissions: [], topics: [], announcements: [], courseSection: '', courseName: '' };
+        const result = { students: [], coursework: [], submissions: [], topics: [], announcements: [], gradeCategories: [], courseSection: '', courseName: '' };
         
         const p1 = new Promise(res => db.get("SELECT name, section FROM courses WHERE id = ?", [courseId], (err, row) => { 
             if(row) {
@@ -136,11 +152,12 @@ router.get('/:courseId/details', async (req, res) => {
             res(); 
         }));
         const p2 = new Promise(res => db.all("SELECT id as topicId, name FROM topics WHERE course_id = ?", [courseId], (err, rows) => { result.topics = rows || []; res(); }));
+        const p2b = new Promise(res => db.all("SELECT id, name, weight FROM grade_categories WHERE course_id = ?", [courseId], (err, rows) => { result.gradeCategories = rows || []; res(); }));
         const p3 = new Promise(res => db.all("SELECT s.id as userId, s.full_name, s.email, s.photo_url, s.class_name as studentClass FROM students s JOIN course_students cs ON s.id = cs.student_id WHERE cs.course_id = ?", [courseId], (err, rows) => {
             result.students = (rows || []).map(r => ({ userId: r.userId, studentClass: r.studentClass, profile: { name: { fullName: r.full_name }, emailAddress: r.email, photoUrl: r.photo_url }}));
             res();
         }));
-        const p4 = new Promise(res => db.all("SELECT id, topic_id as topicId, title, type, max_points as maxPoints, due_date as dueDate, alternate_link as alternateLink FROM coursework WHERE course_id = ?", [courseId], (err, rows) => { result.coursework = rows || []; res(); }));
+        const p4 = new Promise(res => db.all("SELECT id, topic_id as topicId, grade_category_id as gradeCategoryId, title, type, max_points as maxPoints, due_date as dueDate, alternate_link as alternateLink FROM coursework WHERE course_id = ?", [courseId], (err, rows) => { result.coursework = rows || []; res(); }));
         const p5 = new Promise(res => db.all("SELECT ss.id, ss.coursework_id as courseWorkId, ss.student_id as userId, ss.state, ss.assigned_grade as assignedGrade, ss.late, ss.update_time as updateTime FROM student_submissions ss JOIN coursework cw ON ss.coursework_id = cw.id WHERE cw.course_id = ?", [courseId], (err, rows) => { result.submissions = rows || []; res(); }));
         const p6 = new Promise(res => db.all("SELECT * FROM announcements WHERE course_id = ? ORDER BY update_time DESC", [courseId], (err, rows) => {
             result.announcements = (rows || []).map(r => ({
@@ -153,7 +170,7 @@ router.get('/:courseId/details', async (req, res) => {
             res();
         }));
 
-        await Promise.all([p1, p2, p3, p4, p5, p6]);
+        await Promise.all([p1, p2, p2b, p3, p4, p5, p6]);
         res.json(result);
 
     } catch (error) {

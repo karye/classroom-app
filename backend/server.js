@@ -1,6 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+
+console.log("\n\n#########################################");
+console.log("## SERVER STARTING: " + new Date().toISOString());
+console.log("#########################################\n");
+
 const cookieSession = require('cookie-session');
 const fs = require('fs');
 const path = require('path');
@@ -105,53 +110,60 @@ app.get('/api/stats', checkAuth(globalOauth2Client), async (req, res) => {
 
 app.post('/api/stats/reset', checkAuth(globalOauth2Client), async (req, res) => {
     const userId = req.session.userId;
-    console.log(`[SYSTEM] User ${userId} requested full database reset with course restoration.`);
+    console.log(`[SYSTEM] User ${userId} requested database reset.`);
 
     try {
-        // 1. Clear the database
+        // 1. Drop ALL tables sequentially to avoid race conditions
         await new Promise((resolve, reject) => {
             db.serialize(() => {
-                db.run("BEGIN TRANSACTION");
-                db.run("DELETE FROM coursework");
-                db.run("DELETE FROM student_submissions");
-                db.run("DELETE FROM topics");
-                db.run("DELETE FROM course_students");
-                db.run("DELETE FROM calendar_events");
-                db.run("DELETE FROM courses");
-                db.run("DELETE FROM students"); 
-                db.run("COMMIT", (err) => {
-                    if (err) reject(err);
-                    else resolve();
+                db.run("PRAGMA foreign_keys = OFF");
+                
+                const tables = [
+                    'student_submissions', 'coursework', 'course_students', 'topics', 
+                    'grade_categories', 'calendar_events', 'announcements', 
+                    'notes', 'group_mappings', 'settings', 'courses', 'students'
+                ];
+                
+                tables.forEach(table => {
+                    db.run(`DROP TABLE IF EXISTS ${table}`);
+                });
+                
+                db.run("PRAGMA foreign_keys = ON", async (err) => {
+                    if (err) return reject(err);
+                    try {
+                        await db.reinitSchema();
+                        resolve();
+                    } catch (e) { reject(e); }
                 });
             });
         });
 
-        // 2. Shrink file
-        db.run("VACUUM");
+        console.log("[SYSTEM] Database structure recreated. Restoring courses...");
 
-        // 3. Restore the course list from Google immediately
+        // 2. Restore the course list from Google immediately
         const { google } = require('googleapis');
         const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
         const response = await classroom.courses.list({ courseStates: ['ACTIVE'] });
         const googleCourses = response.data.courses || [];
 
         if (googleCourses.length > 0) {
-            const stmt = db.prepare(`INSERT INTO courses (id, name, section, alternate_link) VALUES (?, ?, ?, ?)`);
-            await new Promise((resolve) => {
+            await new Promise((resolve, reject) => {
+                const stmt = db.prepare(`INSERT INTO courses (id, name, section, alternate_link) VALUES (?, ?, ?, ?)`);
                 db.serialize(() => {
                     googleCourses.forEach(c => stmt.run(c.id, c.name, c.section || '', c.alternateLink));
-                    stmt.finalize();
-                    resolve();
+                    stmt.finalize((err) => err ? reject(err) : resolve());
                 });
             });
-            console.log(`[SYSTEM] Restored ${googleCourses.length} courses after reset.`);
+            console.log(`[SYSTEM] Restored ${googleCourses.length} courses.`);
         }
 
-        res.json({ success: true, message: 'Systemet har nollställts och kurslistan har återställts.' });
+        res.json({ success: true, message: 'Systemet har återställts.' });
 
     } catch (err) {
         console.error("Reset error:", err);
-        res.status(500).json({ error: 'Reset failed' });
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Reset failed' });
+        }
     }
 });
 

@@ -131,10 +131,18 @@ const MatrixView = ({
                 getSubmission={(sid, wid) => getSubmission(details, sid, wid)}
                 getCellBackgroundColor={(sub, cw) => getCellBackgroundColor(sub, cw, showHeatmap)}
                 getSubmissionText={(sub, cw) => {
-                    const isGraded = cw && cw.maxPoints > 0;
-                    if (typeof sub?.assignedGrade !== 'undefined' && sub?.assignedGrade !== null) return <span className="fw-bold">{sub.assignedGrade}</span>;
-                    if (!sub) return isGraded ? "" : <i className="bi bi-dash text-muted opacity-50" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
-                    if (isGraded) return sub.state === 'TURNED_IN' ? <i className="bi bi-check text-success fs-6" title="Inlämnad"></i> : "";
+                    const categoryLower = (cw?.categoryName || '').toLowerCase();
+                    const isProv = categoryLower === 'prov';
+                    const hasGrade = typeof sub?.assignedGrade !== 'undefined' && sub?.assignedGrade !== null;
+
+                    // Only show numerical grade if it's a 'Prov'
+                    if (isProv && hasGrade) return <span className="fw-bold">{sub.assignedGrade}</span>;
+                    
+                    // If it's NOT a prov but has a grade, show 'Klar' icon
+                    if (!isProv && hasGrade) return <i className="bi bi-check-all text-success fs-6" title="Klar"></i>;
+
+                    if (!sub) return isProv ? "" : <i className="bi bi-dash text-muted opacity-50" style={{ fontSize: '0.8rem' }} title="Ej inlämnad"></i>;
+                    
                     switch (sub.state) {
                         case 'TURNED_IN': return <i className="bi bi-check text-success fs-6" title="Inlämnad"></i>;
                         case 'RETURNED': return <i className="bi bi-check-all text-success fs-6" title="Klar"></i>;

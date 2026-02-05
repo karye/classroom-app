@@ -28,9 +28,10 @@ const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmpty
                                 className="form-select form-select-sm border-0 fw-bold text-dark bg-transparent ps-0" 
                                 style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }}
                              >
-                                <option value="all">Visa: Allt att rätta</option>
-                                <option value="ungraded">Visa: Uppgifter (Ej prov)</option>
-                                <option value="graded">Visa: Prov & Bedömning</option>
+                                <option value="all">Alla inlämningar</option>
+                                <option value="cat-prov">Visa: Prov</option>
+                                <option value="cat-uppgifter">Visa: Uppgifter</option>
+                                <option value="cat-none">Visa: Övningar (Ingen kategori)</option>
                              </select>
                     </div>
 

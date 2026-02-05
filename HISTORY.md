@@ -7,8 +7,10 @@ Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard"
 ### ✨ Den Stora Unifieringen (Arkitektur & Data)
 *   **Vattenfallsmodellen (Waterfall Model):** Implementerat en strikt hierarkisk datahämtning: **Lokal Cache (IndexedDB)** ➔ **Backend Databas (SQLite)** ➔ **Google Classroom API**. Detta garanterar snabbhet och robusthet.
 *   **Single Source of Truth:** All data om det valda klassrummet bor nu i ett centralt state i `App.jsx`. Ingen vy har längre sin egen kopia, vilket eliminerar risken för osynkad data.
-*   **Enhetlig Synk-endpoint:** Skapat en "Master API"-rutt (`/details`) som hämtar allt för en kurs samtidigt (Elever, Uppgifter, Betyg, Topics och Flödesinlägg).
+*   **Enhetlig Synk-endpoint:** Skapat en "Master API"-rutt (`/details`) som hämtar allt för en kurs samtidigt (Elever, Uppgifter, Betyg, Topics, Flödesinlägg och Betygskategorier).
 *   **Gemensam Cache:** `MatrixView` och `StreamView` delar nu på samma cache-nyckel, vilket innebär att synkning i en vy omedelbart uppdaterar den andra.
+*   **Stöd för Betygskategorier:** Applikationen hämtar och lagrar nu betygskategorier (t.ex. Prov, Uppgift, Övning) för att möjliggöra mer exakt filtrering i Matrisen och Todo-vyn.
+*   **Nuclear Reset:** En ny, stabilare nollställningslogik som sekventiellt raderar och återskapar hela databasstrukturen från grunden för att säkerställa systemets integritet.
 
 ### 🎨 Design & UX (Likriktning)
 *   **Enhetlig Statusbar:** All visuell feedback vid synkning och laddning har flyttats till en global `StatusBar` längst ner.
@@ -19,14 +21,18 @@ Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard"
 *   **Kollapsbara Kursblock:** Lagt till möjligheten att expandera/kollapsa kurser i schemats sidopanel.
 *   **Förbättrad Elevvisning:** Namnpiller i schemat visar nu "Förnamn + Efternamnsinitial" för snabbare identifiering.
 *   **Transparent Synk:** Bekräftelsemodalen för global synk listar nu exakt vilka klassrum som kommer att uppdateras.
+*   **Kategoribaserad Filtrering:** Matrisen och Todo-vyn använder nu faktiska kategorier från Classroom (Prov, Uppgifter, Övningar) istället för att gissa baserat på poäng.
+*   **Smart Visning i Matrisen:** Sifferbetyg visas nu endast för uppgifter i kategorin "Prov". För övriga uppgifter visas tydliga statusikoner.
 
 ### 🛠 Arkitektur & Refaktorisering
 *   **Massiv Kodstädning:** Flyttat tung logik från vy-komponenter (`MatrixView`, `StreamView`, `TodoView`) till centrala funktioner i `App.jsx`.
-*   **Backend-utökning:** Lagt till en dedikerad tabell för `announcements` i SQLite och endpoints för flödesinlägg och enskilda kurstodos.
+*   **Backend-utökning:** Lagt till dedikerade tabeller för `announcements` och `grade_categories` i SQLite.
+*   **Robust Felhantering:** Infört förbättrad loggning, timeout-hantering vid reset och mer detaljerade felsökningsutskrifter i både frontend och backend.
 *   **Buggfixar:**
     *   Åtgärdat "Race Conditions" i kalendersynkningen.
     *   Fixat buggar där statusbaren fastnade i laddningsläge efter nollställning.
-    *   Löst `ReferenceError` vid namnbyten i de nya unifierade flödena.
+    *   Löst `ReferenceError` och syntaxfel i de nya unifierade flödena.
+    *   Fixat bugg med felaktig namn-rendering i schemats sidopanel.
 
 ---
 

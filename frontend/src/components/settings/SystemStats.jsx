@@ -9,6 +9,7 @@ const SystemStats = ({ courses, onLoading }) => {
     const [courseToClear, setCourseToClear] = useState(null); // For delete confirmation modal
     const [showFullResetModal, setShowFullResetModal] = useState(false);
     const [isResetting, setIsResetting] = useState(false);
+    const [resetError, setResetError] = useState(null);
 
     useEffect(() => {
         loadStats();
@@ -100,7 +101,8 @@ const SystemStats = ({ courses, onLoading }) => {
 
     const handleFullReset = async () => {
         setIsResetting(true);
-        if (onLoading) onLoading({ loading: true, message: 'Nollställer allt systemdata...' });
+        setResetError(null);
+        if (onLoading) onLoading({ loading: true, message: 'Nollställer ALLT systemdata...' });
         try {
             await axios.post('/api/stats/reset');
             // Also clear EVERYTHING in IndexedDB
@@ -111,8 +113,7 @@ const SystemStats = ({ courses, onLoading }) => {
         } catch (err) {
             console.error("Reset failed", err);
             if (onLoading) onLoading({ loading: false, message: 'Nollställning misslyckades.' });
-            alert("Kunde inte nollställa databasen.");
-        } finally {
+            setResetError("Kunde inte nollställa databasen. Servern kan vara tillfälligt överbelastad. Försök igen om en liten stund.");
             setIsResetting(false);
         }
     };
@@ -144,7 +145,7 @@ const SystemStats = ({ courses, onLoading }) => {
                         <div className="card-body">
                             <h6 className="text-uppercase opacity-75 small fw-bold mb-2">Backend Databas</h6>
                             <h2 className="display-6 fw-bold mb-0">{serverStats ? formatBytes(serverStats.dbSize) : '-'}</h2>
-                            <p className="small opacity-75 mt-2 mb-0">SQLite (Krypterade anteckningar)</p>
+                            <p className="small opacity-75 mt-2 mb-0">SQLite (Master Storage)</p>
                         </div>
                     </div>
                 </div>
@@ -217,11 +218,11 @@ const SystemStats = ({ courses, onLoading }) => {
             <div className="mt-5 p-4 border rounded bg-danger bg-opacity-10 mb-4 animate-fade-in">
                 <div className="d-flex align-items-center justify-content-between">
                     <div>
-                        <h5 className="text-danger fw-bold mb-1">Fabriksåterställning</h5>
-                        <p className="small text-muted mb-0">Rensar all cachad data på servern och i din webbläsare. Dina anteckningar och inställningar sparas.</p>
+                        <h5 className="text-danger fw-bold mb-1">Totalåterställning</h5>
+                        <p className="small text-muted mb-0">Rensar <strong>allt</strong> data på servern och i din webbläsare för att börja om från noll.</p>
                     </div>
                     <button className="btn btn-danger px-4 fw-bold shadow-sm" onClick={() => setShowFullResetModal(true)}>
-                        Nollställ Systemet
+                        Nollställ Allt
                     </button>
                 </div>
             </div>
@@ -261,29 +262,45 @@ const SystemStats = ({ courses, onLoading }) => {
                     <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content shadow-lg border-0 border-top border-danger border-5">
                             <div className="modal-header bg-white border-bottom-0 pt-4">
-                                <h5 className="modal-title fw-bold text-danger mx-auto">
-                                    <i className="bi bi-radioactive fs-1 d-block mb-2 text-center"></i>
-                                    Är du helt säker?
+                                <h5 className="modal-title fw-bold text-danger mx-auto text-center">
+                                    <i className="bi bi-exclamation-octagon-fill fs-1 d-block mb-2"></i>
+                                    Varning: Total radering
                                 </h5>
                             </div>
                             <div className="modal-body px-4 pb-4 text-center">
-                                <p className="mb-3">
-                                    Detta kommer att <strong>radera all sparad classroom-data</strong> från både servern och din webbläsare.
-                                </p>
-                                <div className="alert alert-warning border-0 small text-start">
-                                    <ul className="mb-0">
-                                        <li>Alla kurser, uppgifter och inlämningar raderas lokalt.</li>
-                                        <li>Alla synkade lektioner raderas.</li>
-                                        <li><strong>Sparade anteckningar och inställningar behålls.</strong></li>
-                                    </ul>
-                                </div>
-                                <p className="text-muted small mb-0 mt-3">Appen kommer att starta om efter nollställningen.</p>
+                                {resetError ? (
+                                    <div className="alert alert-danger border-0">
+                                        <h6 className="fw-bold"><i className="bi bi-x-circle-fill me-2"></i>Nollställning misslyckades</h6>
+                                        <p className="small mb-0">{resetError}</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <p className="mb-3 fw-bold">
+                                            Detta kommer att radera ALL sparad information permanent.
+                                        </p>
+                                        <div className="alert alert-warning border-0 small text-start shadow-sm">
+                                            <ul className="mb-0">
+                                                <li><strong>Alla privata anteckningar raderas.</strong></li>
+                                                <li><strong>Alla personliga inställningar raderas.</strong></li>
+                                                <li>Alla klassrum, inlämningar och betyg raderas lokalt.</li>
+                                                <li>Hela databasens struktur återskapas från grunden.</li>
+                                            </ul>
+                                        </div>
+                                        <p className="text-muted small mb-0 mt-3">Ingen data tas bort från Google Classroom, men allt arbete du gjort <em>inuti denna app</em> kommer att försvinna.</p>
+                                    </>
+                                )}
                             </div>
                             <div className="modal-footer border-top-0 bg-light justify-content-center pb-4">
-                                <button type="button" className="btn btn-outline-secondary px-4" onClick={() => setShowFullResetModal(false)} disabled={isResetting}>Avbryt</button>
-                                <button type="button" className="btn btn-danger px-4 fw-bold" onClick={handleFullReset} disabled={isResetting}>
-                                    {isResetting ? 'Nollställer...' : 'Ja, nollställ allt'}
-                                </button>
+                                {resetError ? (
+                                    <button type="button" className="btn btn-dark px-5 fw-bold" onClick={() => { setResetError(null); setShowFullResetModal(false); }}>Stäng</button>
+                                ) : (
+                                    <>
+                                        <button type="button" className="btn btn-outline-secondary px-4" onClick={() => setShowFullResetModal(false)} disabled={isResetting}>Avbryt</button>
+                                        <button type="button" className="btn btn-danger px-4 fw-bold" onClick={handleFullReset} disabled={isResetting}>
+                                            {isResetting ? 'Nollställer...' : 'Jag förstår, nollställ allt'}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>

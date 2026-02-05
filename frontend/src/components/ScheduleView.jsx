@@ -21,7 +21,14 @@ import TimeGrid from './schedule/TimeGrid';
 import DayColumn from './schedule/DayColumn';
 import DashboardSidebar from './schedule/DashboardSidebar';
 
-const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
+// Helpers
+const matchesFilterList = (text, filters) => {
+    if (!filters || filters.length === 0 || !text) return false;
+    const lowText = text.toLowerCase();
+    return filters.some(f => lowText.includes(f.toLowerCase()));
+};
+
+const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
     const [events, setEvents] = useState([]);
     const [allPendingTodos, setAllPendingTodos] = useState([]); 
     const [selectedCourseName, setSelectedCourseName] = useState(null); 
@@ -142,9 +149,14 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading }) => {
         console.log(`[DEBUG] Processing ${data.length} courses for dashboard todos`);
 
         const allPending = data.flatMap(course => {
-            // No need to filter by visibleCourseIds here anymore as backend already did it
             return (course.todos || [])
                 .filter(t => t.state === 'TURNED_IN')
+                .filter(t => {
+                    // Apply global filters
+                    if (matchesFilterList(t.workTitle, excludeFilters)) return false;
+                    if (matchesFilterList(t.topicName, excludeTopicFilters)) return false;
+                    return true;
+                })
                 .map(t => ({...t, courseName: course.courseName}));
         });
         

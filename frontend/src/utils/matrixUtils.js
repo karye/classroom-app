@@ -87,9 +87,9 @@ export const isStudentAtRisk = (studentId, submissions, groupedWork) => {
 // --- Data Processing ---
 
 export const processMatrixData = (details, { filterText, assignmentFilter, hideNoDeadline, excludeFilters, excludeTopicFilters }) => {
-    if (!details) return { visibleWork: [], groupedWork: [], maxSubmissionsPerGroup: {} };
+    if (!details || !details.coursework) return { visibleWork: [], groupedWork: [], maxSubmissionsPerGroup: {} };
 
-    // Create a robust map of topics, ensuring IDs are strings
+    // Create maps for topics and grade categories, ensuring IDs are strings
     const topicMap = new Map();
     if (details.topics) {
         details.topics.forEach(t => {
@@ -97,25 +97,50 @@ export const processMatrixData = (details, { filterText, assignmentFilter, hideN
         });
     }
 
-    console.log(`[DEBUG] Matrix Utils: Map has ${topicMap.size} topics.`);
+    const categoryMap = new Map();
+    if (details.gradeCategories) {
+        console.log("[DEBUG] Grade Categories from DB:", details.gradeCategories);
+        details.gradeCategories.forEach(gc => {
+            if (gc.id) categoryMap.set(String(gc.id), gc.name);
+        });
+    }
 
     // 1. Filter assignments
-    const visibleWork = (details.coursework || []).filter(cw => {
-        const matchesText = (cw.title || '').toLowerCase().includes(filterText.toLowerCase());
-        const isGraded = cw.maxPoints && cw.maxPoints > 0;
+    const visibleWork = details.coursework.filter((cw, idx) => {
+        const title = (cw.title || '').toLowerCase();
+        const searchMatch = title.includes((filterText || '').toLowerCase());
         
-        let matchesType = true;
-        if (assignmentFilter === 'graded') matchesType = isGraded;
-        else if (assignmentFilter === 'ungraded') matchesType = !isGraded;
+        // Debug first 3 assignments
+        if (idx < 3) {
+            console.log(`[DEBUG] Mapping CW "${cw.title}": catId=${cw.gradeCategoryId}, foundInMap=${cw.gradeCategoryId ? categoryMap.has(String(cw.gradeCategoryId)) : 'N/A'}`);
+        }
+
+        // Add category name to assignment object for UI
+        const catName = cw.gradeCategoryId ? categoryMap.get(String(cw.gradeCategoryId)) : null;
+        cw.categoryName = catName;
+
+        let typeMatch = true;
+        const categoryLower = (catName || '').toLowerCase();
+
+        if (assignmentFilter === 'cat-prov') {
+            typeMatch = categoryLower.includes('prov');
+        } else if (assignmentFilter === 'cat-uppgifter') {
+            typeMatch = categoryLower.includes('uppgift');
+        } else if (assignmentFilter === 'cat-none') {
+            typeMatch = !catName || categoryLower.includes('övning');
+        }
 
         const hasDeadline = cw.dueDate && (typeof cw.dueDate === 'string' || cw.dueDate.year);
-        const matchesDeadline = !hideNoDeadline || hasDeadline;
+        const deadlineMatch = !hideNoDeadline || hasDeadline;
         
-        const matchesAssignmentExclude = matchesFilterList(cw.title, excludeFilters);
-        const matchesTopicExclude = matchesFilterList(topicMap.get(String(cw.topicId)), excludeTopicFilters);
+        const isExcludedTitle = matchesFilterList(cw.title, excludeFilters);
+        const currentTopicName = cw.topicId ? topicMap.get(String(cw.topicId)) : null;
+        const isExcludedTopic = matchesFilterList(currentTopicName, excludeTopicFilters);
         
-        return matchesText && matchesType && matchesDeadline && !matchesAssignmentExclude && !matchesTopicExclude;
+        return searchMatch && typeMatch && deadlineMatch && !isExcludedTitle && !isExcludedTopic;
     });
+
+    console.log(`[DEBUG] Matrix Utils: Visible assignments: ${visibleWork.length} (out of ${details.coursework.length}) using filter: ${assignmentFilter}`);
 
     // 2. Group by topic
     const groupedWork = [];
