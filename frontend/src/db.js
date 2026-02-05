@@ -50,6 +50,17 @@ export const dbRemove = async (key) => {
   });
 };
 
+export const dbGetAllKeys = async () => {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('caches', 'readonly');
+    const store = transaction.objectStore('caches');
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+
 export const dbClear = async () => {
   const db = await openDB();
   return new Promise((resolve, reject) => {

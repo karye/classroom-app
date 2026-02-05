@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useTodoData } from '../hooks/useTodoData';
+import axios from 'axios';
+import { useTodoData, transformDetailsToTodo } from '../hooks/useTodoData';
 import { useTodoFiltering } from '../hooks/useTodoFiltering';
 
 // Components
@@ -10,7 +11,18 @@ import TodoToolbar from './todo/TodoToolbar';
 import TodoSidebar from './todo/TodoSidebar';
 import TodoDetails from './todo/TodoDetails';
 
-const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
+const TodoView = ({ 
+    courses = [], 
+    selectedCourseId, 
+    currentCourseData,
+    onSync,
+    loading: courseLoading,
+    refreshTrigger, 
+    onUpdate, 
+    onLoading, 
+    excludeFilters = [], 
+    excludeTopicFilters = [] 
+}) => {
     // UI State
     const [selectedWorkKey, setSelectedWorkKey] = useState(localStorage.getItem('todo_last_selected_work')); 
     const [sortType, setSortType] = useState('date-desc'); 
@@ -23,29 +35,79 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
     useEffect(() => { localStorage.setItem('todo_assignment_filter', assignmentFilter); }, [assignmentFilter]);
     useEffect(() => { if (selectedWorkKey) localStorage.setItem('todo_last_selected_work', selectedWorkKey); }, [selectedWorkKey]);
 
-    // Data Hook
-    const { data, loading, isRefreshing, error, refetch, fetchSingleCourseTodo } = useTodoData(selectedCourseId, refreshTrigger, onUpdate, onLoading);
+    // Data Hook (Aggregated Todos)
+    const { data: aggregatedData, loading: aggregatedLoading, isRefreshing, error, refetch, syncCourse } = useTodoData(selectedCourseId, refreshTrigger, onUpdate, onLoading);
+
+    // --- EFFECTIVE DATA LOGIC ---
+    const effectiveData = useMemo(() => {
+        console.log("--- Todo Data Source Analysis ---");
+        console.log("Selected Course ID:", selectedCourseId);
+        
+        if (selectedCourseId) {
+            // Priority 1: Use central truth if it has data
+            if (currentCourseData && currentCourseData.submissions?.length > 0) {
+                console.log("[Todo] Using Central Source (currentCourseData)");
+                const transformed = transformDetailsToTodo(selectedCourseId, currentCourseData);
+                return transformed ? [transformed] : [];
+            }
+            // Priority 2: Use aggregated list if central truth is empty/not loaded yet
+            const fromAggregated = aggregatedData.find(c => c.courseId === selectedCourseId);
+            if (fromAggregated) {
+                console.log("[Todo] Using Aggregated Source");
+                return [fromAggregated];
+            }
+            console.log("[Todo] No data found for selected course.");
+            return [];
+        }
+        
+        console.log("[Todo] Using ALL aggregated classrooms");
+        return aggregatedData;
+    }, [selectedCourseId, currentCourseData, aggregatedData]);
 
     // Filtering Hook
-    const { sortedAssignments, topicGroups, visibleAssignments } = useTodoFiltering(data, {
+    const { sortedAssignments, topicGroups, visibleAssignments } = useTodoFiltering(effectiveData, {
         selectedCourseId, filterText, assignmentFilter, hideEmptyAssignments, sortType, excludeFilters, excludeTopicFilters
     });
+
+    console.log("--- Todo Render Analysis ---");
+    console.log("Topic Groups count:", topicGroups.length);
+    console.log("Sorted Assignments count:", sortedAssignments.length);
+
+    // Get current course name for display
+    const selectedCourseName = useMemo(() => {
+        if (!selectedCourseId) return null;
+        const course = courses.find(c => c.id === selectedCourseId);
+        return course ? course.name : null;
+    }, [selectedCourseId, courses]);
 
     // Selection Logic
     const selectedGroup = useMemo(() => selectedWorkKey 
         ? sortedAssignments.find(g => `${g.courseId}-${g.id}` === selectedWorkKey)
         : null, [selectedWorkKey, sortedAssignments]);
 
+    // Handlers
+    const handleWorkSelection = (courseId, workId) => {
+        setSelectedWorkKey(`${courseId}-${workId}`);
+    };
+
+    const handleManualRefresh = () => {
+        if (selectedCourseId) {
+            onSync();
+        } else {
+            alert("För att uppdatera alla kurser samtidigt, gå till Schema-vyn och klicka på 'Uppdatera'.");
+        }
+    };
+
     // Auto-select first item
     useEffect(() => {
-        if (!loading && sortedAssignments.length > 0) {
+        if (!aggregatedLoading && sortedAssignments.length > 0) {
             const exists = sortedAssignments.some(g => `${g.courseId}-${g.id}` === selectedWorkKey);
             if (!selectedWorkKey || !exists) {
                 const firstKey = `${sortedAssignments[0].courseId}-${sortedAssignments[0].id}`;
                 setSelectedWorkKey(firstKey);
             }
         }
-    }, [loading, sortedAssignments.length, selectedCourseId]);
+    }, [aggregatedLoading, sortedAssignments.length, selectedWorkKey]);
 
     // Keyboard navigation
     useEffect(() => {
@@ -75,42 +137,75 @@ const TodoView = ({ selectedCourseId, refreshTrigger, onUpdate, onLoading, exclu
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [selectedWorkKey, visibleAssignments]);
 
-    return (
-        <div className={`container-fluid p-0 h-100 d-flex flex-column position-relative ${isRefreshing ? 'opacity-50' : ''}`} style={{transition: 'opacity 0.2s'}}>
-            
-            <TodoToolbar 
-                sortType={sortType} setSortType={setSortType} 
-                hideEmptyAssignments={hideEmptyAssignments} setHideEmptyAssignments={setHideEmptyAssignments}
-                assignmentFilter={assignmentFilter} setAssignmentFilter={setAssignmentFilter}
-                filterText={filterText} setFilterText={setFilterText}
+    // --- RENDER LOGIC ---
+
+    if (error) return <ErrorState error={error} onRetry={refetch} />;
+
+    // Logic to determine if we should show EmptyState
+    const hasAnyDataForSelection = effectiveData.some(c => c.todos?.length > 0);
+
+    // Case 1: NO DATA AT ALL for the current selection (Needs sync)
+    if (!hasAnyDataForSelection) {
+        return (
+            <EmptyState 
+                icon="bi-cloud-download"
+                title="Inget att visa nu"
+                message={`Ingen data hittades för ${selectedCourseName || 'dina klassrum'}. Klicka på knappen för att hämta inlämningar från Google Classroom.`}
+                isRefreshing={aggregatedLoading || isRefreshing || courseLoading} 
+                onRefresh={handleManualRefresh} 
             />
+        );
+    }
 
+    // Case 2: DATA EXISTS (Show UI frame)
+    return (
+        <div className="d-flex h-100 bg-white">
+            <TodoSidebar 
+                topicGroups={topicGroups}
+                selectedWorkKey={selectedWorkKey}
+                onSelectWork={handleWorkSelection}
+                totalCount={visibleAssignments.length}
+            />
+            
             <div className="d-flex flex-grow-1 overflow-hidden">
-                {loading && data.length === 0 ? (
-                    <LoadingSpinner />
-                ) : error ? (
-                    <ErrorState error={error} onRetry={refetch} />
-                ) : sortedAssignments.length === 0 ? (
-                    <EmptyState isRefreshing={isRefreshing} onRefresh={refetch} />
-                ) : (
-                    <>
-                        <div className="col-md-4 col-lg-3 border-end bg-light overflow-auto h-100 shadow-sm" style={{zIndex: 2}}>
-                            <TodoSidebar 
-                                topicGroups={topicGroups}
-                                selectedWorkKey={selectedWorkKey}
-                                setSelectedWorkKey={setSelectedWorkKey}
-                                totalCount={sortedAssignments.length}
-                                selectedCourseId={selectedCourseId}
-                                fetchSingleCourseTodo={fetchSingleCourseTodo}
-                                isRefreshing={isRefreshing}
+                <div className="flex-grow-1 d-flex flex-column bg-light border-start overflow-hidden">
+                    <TodoToolbar 
+                        filterText={filterText} setFilterText={setFilterText}
+                        assignmentFilter={assignmentFilter} setAssignmentFilter={setAssignmentFilter}
+                        hideEmptyAssignments={hideEmptyAssignments} setHideEmptyAssignments={setHideEmptyAssignments}
+                        sortType={sortType} setSortType={setSortType}
+                        count={visibleAssignments.length}
+                    />
+                    
+                    <div className="flex-grow-1 overflow-auto">
+                        {sortedAssignments.length === 0 ? (
+                            <div className="h-100 d-flex flex-column align-items-center justify-content-center text-muted animate-fade-in">
+                                <div className="bg-white rounded-circle p-4 mb-3 shadow-sm">
+                                    <i className="bi bi-funnel fs-1 opacity-25"></i>
+                                </div>
+                                <h5>Filter aktiverat</h5>
+                                <p className="small">Dina nuvarande filter döljer alla uppgifter i denna vy.</p>
+                                <button className="btn btn-primary btn-sm rounded-pill px-4 fw-bold" onClick={() => {
+                                    setHideEmptyAssignments(false);
+                                    setAssignmentFilter('all');
+                                    setFilterText('');
+                                }}>Visa allt</button>
+                            </div>
+                        ) : selectedGroup ? (
+                            <TodoDetails 
+                                assignment={selectedGroup} 
+                                onRefresh={() => refetch()}
                             />
-                        </div>
-
-                        <div className="col-md-8 col-lg-9 bg-white overflow-auto h-100">
-                            <TodoDetails selectedGroup={selectedGroup} />
-                        </div>
-                    </>
-                )}
+                        ) : (
+                            <div className="h-100 d-flex align-items-center justify-content-center text-muted">
+                                <div className="text-center">
+                                    <i className="bi bi-arrow-left-circle fs-1 mb-2 opacity-25 d-block"></i>
+                                    Välj en uppgift i listan till vänster
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );

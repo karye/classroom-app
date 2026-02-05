@@ -8,53 +8,50 @@ Applikationen har en enhetlig layout med fokus på produktivitet och överblick.
 
 ### Navigering (Toppmeny)
 *   **Vyer:** Knappar för att växla mellan **Schema**, **Matris**, **Stream**, **Todo** och **Inställningar**.
-*   **Kursväljare:** Välj specifikt klassrum. (Inaktiverad i Schema-vyn då den visar allt).
+*   **Kursväljare:** Välj specifikt klassrum. Valet är nu **globalt** och bevaras när du växlar mellan alla vyer (utom Schema-vyn där den är inaktiv men valet sparas i bakgrunden).
 *   **Status & Verktyg:** 
-    *   **Uppdateringsknapp:** Snurrar och visar "Synkar..." när data hämtas. I Schema-vyn kräver den bekräftelse för att starta en global synk.
+    *   **Uppdateringsknapp:** Startar en global synk (i Schema-vyn) eller en djup-synk av vald kurs. All visuell respons visas nu i **Statusbaren** längst ner.
     *   **Utloggning:** Längst till höger.
-
-### Enhetliga Verktygsrader
-Matris- och Todo-vyn har nu identiska verktygsrader för konsekvent filtrering:
-*   **Sök:** Fritextsökning på uppgiftstitlar.
-*   **Visningsläge (Dropdown):**
-    *   **Alla uppgifter:** Visar allt.
-    *   **Prov & Bedömning:** Visar endast poängsatta uppgifter (med Heatmap i matrisen).
-    *   **Uppgifter (Ej prov):** Visar endast opoängsatta uppgifter (bockar/status).
-*   **Vy-specifika filter:** T.ex. "Deadline" (Matris) eller "Dölj tomma" (Todo).
 
 ---
 
-## 2. Huvudmoduler
+## 2. Gemensamma Gränssnittskomponenter
+
+### A. Statusbar (Global Feedback)
+All kommunikation om pågående processer har flyttats till en diskret svart list längst ner på skärmen.
+*   **Laddningsstatus:** Visar t.ex. "Synkar med Google..." eller "Hämtar data...".
+*   **Resultat:** Visar sammanfattningar som "Synkade 25 elever och 10 uppgifter".
+*   **Auto-rensning:** Meddelanden försvinner automatiskt efter 5 sekunder.
+
+### B. Enhetlig EmptyState
+När data saknas (t.ex. efter nollställning) visas en central ikon med knappen "Hämta nu".
+*   **Statisk vy:** För att minimera distraktion är vyn helt statisk under laddning. All rörelse och status sker i Statusbaren.
+*   **Knapp-hantering:** Knappen försvinner omedelbart vid klick för att förhindra dubbel-synkning.
+
+---
+
+## 3. Huvudmoduler
 
 ### A. Schema (Schedule View)
 En vertikal veckokalender för planering med integrerad dashboard.
 *   **Kalender:** Visar lektioner 08:00 - 18:00 (Mån-Fre) med smart krockhantering.
-*   **Interaktivitet:** Klicka på en lektion för att filtrera dashboarden på just den kursen.
-*   **Dashboard (Sidopanel):**
-    *   **Att Rätta:** Visar inlämningar som kräver åtgärd.
-    *   **Lägen:** Visar antingen "Topp 5" globalt (standard) eller alla för en vald kurs (vid klick i kalendern).
+*   **Snabb-synk:** Synk-knappen i denna vy uppdaterar endast kalenderhändelser för maximal hastighet. Bekräftelsemodalen listar exakt vilka klassrum som omfattas.
+*   **Hierarkisk Dashboard (Sidopanel):**
+    *   **Struktur:** Grupperar inlämningar i en tydlig hierarki: **Klassrum ➔ Ämne ➔ Uppgift**.
+    *   **Kollapsbarhet:** Varje klassrumsblock kan expanderas eller kollapsas för att spara utrymme.
+    *   **Elev-chips:** Visar elever med "Förnamn + Initial" (t.ex. Karim S) i kompakta pill-formade brickor. Röda brickor markerar sena inlämningar.
+    *   **Global vy:** Om ingen lektion är vald visas *alla* väntande inlämningar från alla synliga kurser.
 
 ### B. Matrisen (Matrix View)
-En heatmap över elevresultat.
-*   **Filtrering:** Använd dropdown-menyn för att växla mellan prestationsöversikt (Prov) och aktivitetsöversikt (Uppgifter).
-*   **Färgkodning:**
-    *   **Ljusblå bakgrund:** Inlämnad uppgift (Action krävs).
-    *   **Grön/Gul/Röd (Siffror):** Betygsatta prov (Heatmap baserat på %).
-*   **Elevöversikt:** Klicka på en elev för att se en detaljerad lista med status-piller ("Badges").
+En heatmap över elevresultat. Nu helt synkroniserad med Stream-vyn via den gemensamma cachen.
 
 ### C. Stream & Loggbok (Stream View)
-Ett sökbart flöde för historik.
-*   **Sök:** Filtrera inlägg direkt på textinnehåll via verktygsraden.
-*   **Kalender:** Filtrera på datum via sidomenyn.
-*   **Loggbok:** Skriv privata anteckningar till varje inlägg.
+Ett sökbart flöde för historik. Nu integrerat i den stora "detalj-synken" så att inlägg laddas in samtidigt som betyg och uppgifter.
 
 ### D. Todo (Att Göra)
 Din inkorg för rättning.
-*   **Sök:** Hitta specifika uppgifter snabbt.
-*   **Filter:** 
-    *   **Dölj tomma:** Fokusera på det som är aktuellt att rätta.
-    *   **Dropdown:** Välj om du vill se Prov eller vanliga Uppgifter.
-*   **Status:** Tydliga piller visar om en elev är "Inlämnad", "Klar" eller "Sen".
+*   **Omedelbarhet:** Visar data direkt från den centrala källan så snart synkningen är klar, utan fördröjning.
+*   **Filter:** Respekterar globala filter för dolda kurser och ämnen.
 
 ### E. Inställningar (Settings View)
 En dedikerad vy för konfiguration.

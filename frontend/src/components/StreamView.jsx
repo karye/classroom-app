@@ -8,12 +8,18 @@ import { dbGet, dbSet } from '../db';
 import CalendarSidebar from './stream/CalendarSidebar';
 import Feed from './stream/Feed';
 import LoadingSpinner from './common/LoadingSpinner';
+import EmptyState from './common/EmptyState';
 import ExportPreviewModal from './common/ExportPreviewModal';
 
-const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
+const StreamView = ({ 
+    courseId, 
+    currentCourseData: data, 
+    onSync, 
+    loading, 
+    onUpdate 
+}) => {
     const [announcements, setAnnouncements] = useState([]);
     const [notes, setNotes] = useState({});
-    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [editingNoteId, setEditingNoteId] = useState(null);
     const [tempNoteContent, setTempNoteContent] = useState("");
@@ -27,81 +33,26 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
     const [exportContent, setExportContent] = useState('');
     const [exportFilename, setExportFilename] = useState('');
 
-    const setLocalLoading = (val) => {
-        setLoading(val);
-        if (onLoading) onLoading(val);
-    };
-
-    // Load from cache or fetch
+    // Sync announcements from central data
     useEffect(() => {
-        const loadCache = async () => {
+        if (data?.announcements) {
+            setAnnouncements(data.announcements);
+        }
+    }, [data]);
+
+    // Still fetch notes separately as they are user-specific and fast
+    useEffect(() => {
+        const fetchNotes = async () => {
             if (!courseId) return;
-            setLocalLoading(true);
             try {
-                const cacheKey = `stream_cache_${courseId}`;
-                const cached = await dbGet(cacheKey);
-                
-                // Fetch notes (fast from DB)
                 const notesRes = await axios.get(`/api/notes/${courseId}`);
                 setNotes(notesRes.data);
-
-                if (cached) {
-                    setAnnouncements(cached.data);
-                } else {
-                    await fetchStreamData(courseId);
-                }
             } catch (err) {
-                console.warn("Stream cache load failed", err);
-                await fetchStreamData(courseId);
-            } finally {
-                setLocalLoading(false);
+                console.warn("Failed to fetch notes", err);
             }
         };
-        loadCache();
+        fetchNotes();
     }, [courseId]);
-
-    // Manual refresh
-    useEffect(() => {
-        if (refreshTrigger > 0 && courseId) {
-            fetchStreamData(courseId, true);
-        }
-    }, [refreshTrigger]);
-
-    const fetchStreamData = async (id, force = false) => {
-        if (!id) return;
-        if (force) setLocalLoading(true);
-        // Don't clear error immediately to avoid flicker if we have data
-        
-        try {
-            const [annRes, notesRes] = await Promise.all([
-                axios.get(`/api/courses/${id}/announcements`),
-                axios.get(`/api/notes/${id}`)
-            ]);
-            setAnnouncements(annRes.data);
-            setNotes(notesRes.data);
-            setError(null); // Clear error on success
-            
-            const now = Date.now();
-            if (onUpdate) onUpdate(new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-
-            await dbSet(`stream_cache_${id}`, {
-                timestamp: now,
-                data: annRes.data
-            });
-        } catch (err) {
-            console.error("Failed to fetch stream data", err);
-            // Only show full error screen if we have absolutely no data to show
-            if (announcements.length === 0) {
-                setError("Kunde inte hämta inlägg. Kontrollera din anslutning eller logga in på nytt.");
-            } else {
-                // If we have data, keep showing it but maybe log/toast the error (optional)
-                // For now, we suppress the blocking error state to allow offline work
-                console.warn("Using cached data due to fetch error.");
-            }
-        } finally {
-            if (force) setLocalLoading(false);
-        }
-    };
 
     const handleSaveNote = async (postId, content) => {
         setSavingNote(true);
@@ -193,8 +144,16 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
         );
     };
 
-    if (loading) {
-        return <LoadingSpinner />;
+    if (announcements.length === 0) {
+        return (
+            <EmptyState 
+                icon="bi-chat-square-text"
+                title="Inget att visa nu"
+                message={`Ingen data hittades för kursen. Klicka på knappen för att hämta kursflöde och inlägg från Google Classroom.`}
+                onRefresh={onSync}
+                isRefreshing={loading}
+            />
+        );
     }
 
     if (error) {
@@ -248,7 +207,7 @@ const StreamView = ({ courseId, refreshTrigger, onUpdate, onLoading }) => {
                 </div>
             </div>
 
-            <div className="container-fluid flex-grow-1 overflow-hidden">
+            <div className={`container-fluid flex-grow-1 overflow-hidden ${loading ? 'opacity-50' : ''}`} style={{ transition: 'opacity 0.2s' }}>
                 <div className="row h-100 flex-nowrap">
                     <CalendarSidebar 
                         selectedDate={selectedDate} 

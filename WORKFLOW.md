@@ -63,16 +63,16 @@ Läraren vill kunna se historiken i sitt schema.
 
 ## 4. Dashboardens Roll & Krav
 
-Denna applikation ("Classroom Matrix Dashboard") ska fungera som det optimerade gränssnittet för läraren.
+Denna applikation ("Classroom Matrix Dashboard") fungerar som det optimerade gränssnittet för läraren genom en helt unifierad arkitektur.
 
-### Kravspecifikation
-1.  **Överblick (Matrisen):** Måste ge en omedelbar bild av "röda hål" (elever som halkar efter) tvärs över alla moment.
-2.  **Filter (Inställningar):** Läraren har många gamla eller inaktiva Classroom-kurser. Appen måste respektera filtret **"Dina klassrum"** så att menyer, matriser och Todos endast visar relevanta, aktiva kurser.
-3.  **Effektivitet (Todo):** Måste minimera klick. Att "bocka av" en enkel uppgift ska gå på en sekund, inte fem.
-4.  **Autonomi:** Appen ska kännas snabb och smart (därav `useMemo` och lokal cachning), men datan måste vara sann mot Google Classroom.
+### Kravspecifikation & Fördelar
+1.  **Total Synkronisering (Enhetlig Synk):** Läraren behöver inte längre fundera på vilken vy som är uppdaterad. En synkning i Matrisen uppdaterar omedelbart "Att göra"-listan och kursflödet.
+2.  **Enhetligt Kursval:** Appen minns det aktuella klassrummet oavsett vilken flik läraren arbetar i, vilket gör det enkelt att växla mellan att rätta en uppgift (Todo) och se elevens helhetsbild (Matrix).
+3.  **Snabbhet via Vattenfallsmodellen:** Genom att prioritera lokal cache och backend-data kan läraren börja arbeta omedelbart, medan tunga synkningar mot Google sker diskret i bakgrunden med feedback i statusbaren.
+4.  **Inbox Zero (Todo):** "Att göra"-listan är nu mer reaktiv och visar nyinlämnad data så fort den centrala synken är klar.
 
 ### Framtida "Write"-funktioner
-För att fullt ut stödja arbetssättet måste vi på sikt gå från "Read-Only" till att kunna skriva:
-*   **Quick-Return:** Skicka `studentSubmission.return` till Google API.
-*   **Poängsättning:** Skicka `studentSubmission.assignedGrade` till Google API.
+Arkitekturen är nu förberedd för att skriva data tillbaka till Classroom:
+*   **Quick-Return:** Tack vare den centrala sanningen kan en "återlämningsknapp" i Todo-vyn omedelbart uppdatera både Matrisen och databasen.
+*   **Poängsättning:** Den enhetliga modellen gör det säkert att uppdatera betyg från vilken vy som helst.
 *   **Logg-publicering:** Kunna skicka en lokal loggboksanteckning som ett `Announcement` till Classroom.

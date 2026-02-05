@@ -9,7 +9,13 @@ export const matchesFilterList = (text, filters) => {
 };
 
 export const getSubmission = (details, studentId, workId) => {
-    return details?.submissions?.find(s => s.userId === studentId && s.courseWorkId === workId);
+    if (!details?.submissions) return null;
+    const sub = details.submissions.find(s => String(s.userId) === String(studentId) && String(s.courseWorkId) === String(workId));
+    if (!sub) {
+        // Optional: log only a few misses to avoid flooding
+        // console.log(`[DEBUG] No sub for student ${studentId} on work ${workId}`);
+    }
+    return sub;
 };
 
 // --- Visual Helpers ---
@@ -83,20 +89,30 @@ export const isStudentAtRisk = (studentId, submissions, groupedWork) => {
 export const processMatrixData = (details, { filterText, assignmentFilter, hideNoDeadline, excludeFilters, excludeTopicFilters }) => {
     if (!details) return { visibleWork: [], groupedWork: [], maxSubmissionsPerGroup: {} };
 
-    const topicMap = new Map(details.topics?.map(t => [t.topicId, t.name]));
+    // Create a robust map of topics, ensuring IDs are strings
+    const topicMap = new Map();
+    if (details.topics) {
+        details.topics.forEach(t => {
+            if (t.topicId) topicMap.set(String(t.topicId), t.name);
+        });
+    }
+
+    console.log(`[DEBUG] Matrix Utils: Map has ${topicMap.size} topics.`);
 
     // 1. Filter assignments
-    const visibleWork = details.coursework.filter(cw => {
-        const matchesText = cw.title.toLowerCase().includes(filterText.toLowerCase());
+    const visibleWork = (details.coursework || []).filter(cw => {
+        const matchesText = (cw.title || '').toLowerCase().includes(filterText.toLowerCase());
         const isGraded = cw.maxPoints && cw.maxPoints > 0;
         
         let matchesType = true;
         if (assignmentFilter === 'graded') matchesType = isGraded;
         else if (assignmentFilter === 'ungraded') matchesType = !isGraded;
 
-        const matchesDeadline = !hideNoDeadline || (cw.dueDate && cw.dueDate.year);
+        const hasDeadline = cw.dueDate && (typeof cw.dueDate === 'string' || cw.dueDate.year);
+        const matchesDeadline = !hideNoDeadline || hasDeadline;
+        
         const matchesAssignmentExclude = matchesFilterList(cw.title, excludeFilters);
-        const matchesTopicExclude = matchesFilterList(topicMap.get(cw.topicId), excludeTopicFilters);
+        const matchesTopicExclude = matchesFilterList(topicMap.get(String(cw.topicId)), excludeTopicFilters);
         
         return matchesText && matchesType && matchesDeadline && !matchesAssignmentExclude && !matchesTopicExclude;
     });
@@ -105,15 +121,42 @@ export const processMatrixData = (details, { filterText, assignmentFilter, hideN
     const groupedWork = [];
     const groups = {};
     const noTopic = [];
+    
     visibleWork.forEach(cw => {
-        if (cw.topicId) {
-            if (!groups[cw.topicId]) groups[cw.topicId] = [];
-            groups[cw.topicId].push(cw);
-        } else noTopic.push(cw);
+        const tid = cw.topicId ? String(cw.topicId) : null;
+        
+        if (tid && topicMap.has(tid)) {
+            if (!groups[tid]) groups[tid] = [];
+            groups[tid].push(cw);
+        } else {
+            // Log why it didn't match if it has a topicId
+            if (cw.topicId) {
+                console.log(`[DEBUG] Assignment "${cw.title}" has topicId "${cw.topicId}" but it wasn't found in topicMap.`);
+            }
+            noTopic.push(cw);
+        }
     });
-    details.topics?.forEach(t => { if (groups[t.topicId]) { groupedWork.push({ id: t.topicId, name: t.name, assignments: groups[t.topicId] }); delete groups[t.topicId]; } });
-    Object.keys(groups).forEach(tid => groupedWork.push({ id: tid, name: topicMap.get(tid) || 'Okänt Ämne', assignments: groups[tid] }));
+
+    // Sort and construct the final groupedWork array
+    if (details.topics) {
+        details.topics.forEach(t => { 
+            const tid = String(t.topicId);
+            if (groups[tid]) { 
+                groupedWork.push({ id: tid, name: t.name, assignments: groups[tid] }); 
+                delete groups[tid]; 
+            } 
+        });
+    }
+
+    // Add any remaining groups that might have been missed
+    Object.entries(groups).forEach(([tid, assignments]) => {
+        groupedWork.push({ id: tid, name: topicMap.get(tid) || 'Okänt Ämne', assignments });
+    });
+
+    // Alphabetical sort of topics
     groupedWork.sort((a, b) => a.name.localeCompare(b.name, 'sv', { numeric: true }));
+    
+    // Always put "Other" at the end
     if (noTopic.length > 0) groupedWork.push({ id: 'none', name: 'Övrigt', assignments: noTopic });
 
     // 3. Max submissions per group (for progress calculation)

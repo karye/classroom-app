@@ -10,7 +10,8 @@ const SettingsView = ({
     excludeFilters, 
     onUpdateFilters, 
     excludeTopicFilters, 
-    onUpdateTopicFilters
+    onUpdateTopicFilters,
+    onLoading
 }) => {
     const [activeTab, setActiveTab] = useState('config'); // 'config' | 'data' | 'students'
 
@@ -60,11 +61,11 @@ const SettingsView = ({
                     )}
 
                     {activeTab === 'data' && (
-                        <SystemStats courses={courses} />
+                        <SystemStats courses={courses} onLoading={onLoading} />
                     )}
 
                     {activeTab === 'students' && (
-                        <StudentRegistry courses={courses} />
+                        <StudentRegistry courses={courses} onLoading={onLoading} />
                     )}
 
                 </div>

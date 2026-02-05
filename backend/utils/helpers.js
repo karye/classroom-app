@@ -42,19 +42,19 @@ const decryptNote = (text, userId) => {
 
 // --- Database Helpers ---
 
-// Inject 'studentClass' into a list of students/submissions
+// Inject 'studentClass' into a list of students/submissions from the local DB
 const injectStudentClasses = async (dataArray, userId) => {
     return new Promise((resolve, reject) => {
-        db.all('SELECT google_id, class_name FROM student_classes', [], (err, rows) => {
+        db.all('SELECT id, class_name FROM students', [], (err, rows) => {
             if (err) {
                 console.error("Failed to load student classes", err);
                 resolve(dataArray);
                 return;
             }
-            const classMap = new Map(rows.map(r => [r.google_id, r.class_name]));
+            const classMap = new Map(rows.map(r => [r.id, r.class_name]));
             
             dataArray.forEach(item => {
-                const uid = item.userId || item.studentId; 
+                const uid = item.userId || item.studentId || item.id; 
                 if (uid && classMap.has(uid)) {
                     item.studentClass = classMap.get(uid);
                 }

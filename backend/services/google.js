@@ -19,8 +19,8 @@ const runWithLimit = async (items, limit, fn) => {
     const results = [];
     const executing = [];
     for (const item of items) {
-        // Add small delay to smooth out burst traffic
-        await wait(50); 
+        // Add delay to prevent hitting Google's rate limits
+        await wait(100); 
         const p = Promise.resolve().then(() => fn(item));
         results.push(p);
         const e = p.then(() => executing.splice(executing.indexOf(e), 1));

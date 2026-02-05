@@ -273,29 +273,29 @@ const StudentRegistry = ({ courses }) => {
                     </div>
                 </div>
             ) : (
-                <div className="text-center py-5 bg-white border border-dashed rounded animate-fade-in shadow-sm">
-                    <div className="mb-4">
-                        <div className="bg-light d-inline-flex p-4 rounded-circle mb-3">
+                <div className="text-center py-5 px-4 bg-white border border-dashed rounded animate-fade-in shadow-sm my-4">
+                    <div className="mb-5">
+                        <div className="bg-light d-inline-flex p-4 rounded-circle mb-4">
                             <i className="bi bi-people text-muted fs-1"></i>
                         </div>
-                        <h4 className="fw-bold text-dark">Inga grupplistor importerade</h4>
-                        <p className="text-muted mx-auto" style={{ maxWidth: '500px' }}>
+                        <h4 className="fw-bold text-dark mb-3">Inga grupplistor importerade</h4>
+                        <p className="text-muted mx-auto" style={{ maxWidth: '550px' }}>
                             Här kan du organisera dina elever efter deras faktiska klasser och grupper. 
                             Det gör det enklare att skilja på elever i sammanslagna kurser.
                         </p>
                     </div>
-                    <div className="d-flex justify-content-center gap-4 text-start">
-                        <div className="small">
-                            <div className="fw-bold text-primary mb-1">1. Kopiera</div>
-                            <div className="text-muted">Kopiera grupplistan från SchoolSoft (tabellen med Nr, Klass, Namn).</div>
+                    <div className="row justify-content-center g-4 text-start">
+                        <div className="col-md-3">
+                            <div className="fw-bold text-primary mb-2">1. Kopiera</div>
+                            <div className="text-muted small">Kopiera grupplistan från SchoolSoft (tabellen med Nr, Klass, Namn).</div>
                         </div>
-                        <div className="small">
-                            <div className="fw-bold text-primary mb-1">2. Klistra in</div>
-                            <div className="text-muted">Använd rutan ovan för att klistra in texten och klicka på Importera.</div>
+                        <div className="col-md-3">
+                            <div className="fw-bold text-primary mb-2">2. Klistra in</div>
+                            <div className="text-muted small">Använd rutan ovan för att klistra in texten och klicka på Importera.</div>
                         </div>
-                        <div className="small">
-                            <div className="fw-bold text-primary mb-1">3. Se resultat</div>
-                            <div className="text-muted">Eleverna kommer nu visa sin rätta klass i Matris- och Todo-vyn.</div>
+                        <div className="col-md-3">
+                            <div className="fw-bold text-primary mb-2">3. Se resultat</div>
+                            <div className="text-muted small">Eleverna kommer nu visa sin rätta klass i Matris- och Todo-vyn.</div>
                         </div>
                     </div>
                 </div>

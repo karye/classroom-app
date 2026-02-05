@@ -41,7 +41,10 @@ app.use('/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/todos', todoRoutes);
 app.use('/api/events', eventRoutes);
-app.use('/api/students', studentRoutes);
+
+// Students & Groups
+app.use('/api/students', studentRoutes); // Supports /api/students/classes, /api/students/import
+app.use('/api/groups', studentRoutes);   // Supports /api/groups/mappings, /api/groups/sync
 
 // --- Settings & Notes (Still here for simplicity, or move to routes/user.js) ---
 
@@ -68,28 +71,87 @@ app.post('/api/settings', checkAuth(globalOauth2Client), (req, res) => {
 app.get('/api/stats', checkAuth(globalOauth2Client), async (req, res) => {
     try {
         const userId = req.session.userId;
-        const dbPath = './classroom.db'; // Adjust if needed
+        const dbPath = path.join(__dirname, 'data', 'classroom.db');
         let sizeBytes = 0;
-        // Check data dir
-        const fullPath = path.join(__dirname, 'data', 'classroom.db');
-        if (fs.existsSync(fullPath)) sizeBytes = fs.statSync(fullPath).size;
+        
+        if (fs.existsSync(dbPath)) {
+            sizeBytes = fs.statSync(dbPath).size;
+        }
 
-        const notesCount = await new Promise((resolve, reject) => {
+        // Get total notes count
+        const notesCount = await new Promise((resolve) => {
             db.get('SELECT COUNT(*) as count FROM notes WHERE user_id = ?', [userId], (err, row) => {
-                if (err) reject(err); else resolve(row.count);
+                resolve(row ? row.count : 0);
             });
         });
         
-        const notesPerCourse = await new Promise((resolve, reject) => {
+        // Get distribution per course
+        const notesPerCourse = await new Promise((resolve) => {
             db.all('SELECT course_id, COUNT(*) as count FROM notes WHERE user_id = ? GROUP BY course_id', [userId], (err, rows) => {
-                if (err) reject(err); else resolve(rows);
+                resolve(rows || []);
             });
         });
 
-        res.json({ dbSize: sizeBytes, totalNotes: notesCount, notesDistribution: notesPerCourse });
+        res.json({ 
+            dbSize: sizeBytes, 
+            totalNotes: notesCount, 
+            notesDistribution: notesPerCourse 
+        });
     } catch (err) {
         console.error("Stats error:", err);
         res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+app.post('/api/stats/reset', checkAuth(globalOauth2Client), async (req, res) => {
+    const userId = req.session.userId;
+    console.log(`[SYSTEM] User ${userId} requested full database reset with course restoration.`);
+
+    try {
+        // 1. Clear the database
+        await new Promise((resolve, reject) => {
+            db.serialize(() => {
+                db.run("BEGIN TRANSACTION");
+                db.run("DELETE FROM coursework");
+                db.run("DELETE FROM student_submissions");
+                db.run("DELETE FROM topics");
+                db.run("DELETE FROM course_students");
+                db.run("DELETE FROM calendar_events");
+                db.run("DELETE FROM courses");
+                db.run("DELETE FROM students"); 
+                db.run("COMMIT", (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+        });
+
+        // 2. Shrink file
+        db.run("VACUUM");
+
+        // 3. Restore the course list from Google immediately
+        const { google } = require('googleapis');
+        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+        const response = await classroom.courses.list({ courseStates: ['ACTIVE'] });
+        const googleCourses = response.data.courses || [];
+
+        if (googleCourses.length > 0) {
+            const stmt = db.prepare(`INSERT INTO courses (id, name, section, alternate_link) VALUES (?, ?, ?, ?)`);
+            await new Promise((resolve) => {
+                db.serialize(() => {
+                    googleCourses.forEach(c => stmt.run(c.id, c.name, c.section || '', c.alternateLink));
+                    stmt.finalize();
+                    resolve();
+                });
+            });
+            console.log(`[SYSTEM] Restored ${googleCourses.length} courses after reset.`);
+        }
+
+        res.json({ success: true, message: 'Systemet har nollställts och kurslistan har återställts.' });
+
+    } catch (err) {
+        console.error("Reset error:", err);
+        res.status(500).json({ error: 'Reset failed' });
     }
 });
 

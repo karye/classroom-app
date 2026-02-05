@@ -1,110 +1,88 @@
 const express = require('express');
-const { google } = require('googleapis');
 const router = express.Router();
-const { globalOauth2Client, runWithLimit } = require('../services/google');
-const { injectStudentClasses } = require('../utils/helpers');
+const db = require('../database');
+const { globalOauth2Client } = require('../services/google');
 const { checkAuth } = require('../utils/auth');
 
 router.use(checkAuth(globalOauth2Client));
 
-// Get aggregated Todos for ALL courses
+/**
+ * Get aggregated Todos for ALL courses.
+ * Now reads directly from the local relational DB!
+ */
 router.get('/', async (req, res) => {
     try {
-        const classroom = google.classroom({ version: 'v1', auth: globalOauth2Client });
+        const userId = req.session.userId;
         
-        const coursesRes = await classroom.courses.list({ courseStates: ['ACTIVE'] });
-        let allCourses = coursesRes.data.courses || [];
-        
-        // Optimisation: Filter by requested IDs
+        // Base SQL to find all pending submissions
+        let sql = `
+            SELECT 
+                ss.id,
+                ss.coursework_id as workId,
+                ss.student_id as studentId,
+                ss.state,
+                ss.late,
+                ss.assigned_grade as assignedGrade,
+                ss.update_time as updateTime,
+                cw.title as workTitle,
+                cw.alternate_link as workLink,
+                cw.max_points as maxPoints,
+                cw.course_id as courseId,
+                cw.topic_id as topicId,
+                c.name as courseName,
+                c.section as courseSection,
+                s.full_name as studentName,
+                s.photo_url as studentPhoto,
+                s.class_name as studentClass,
+                t.name as topicName
+            FROM student_submissions ss
+            JOIN coursework cw ON ss.coursework_id = cw.id
+            JOIN courses c ON cw.course_id = c.id
+            JOIN students s ON ss.student_id = s.id
+            LEFT JOIN topics t ON cw.topic_id = t.id
+            WHERE c.is_active = 1
+        `;
+
+        const params = [];
+
+        // Optional: Filter by specific courses if requested
         if (req.query.courseIds) {
-            const requestedIds = new Set(req.query.courseIds.split(','));
-            allCourses = allCourses.filter(c => requestedIds.has(c.id));
+            const idList = req.query.courseIds.split(',').map(id => id.trim());
+            const placeholders = idList.map(() => '?').join(',');
+            sql += ` AND c.id IN (${placeholders})`;
+            params.push(...idList);
         }
-        
-        if (allCourses.length === 0) return res.json([]);
 
-        // Concurrent Fetch
-        const results = await runWithLimit(allCourses, 3, async (course) => {
-            try {
-                const [studentsRes, courseWorkRes, topicsRes] = await Promise.all([
-                    classroom.courses.students.list({ courseId: course.id }).catch(() => ({ data: { students: [] } })),
-                    classroom.courses.courseWork.list({ courseId, orderBy: 'updateTime desc', pageSize: 100 }).catch(() => ({ data: { courseWork: [] } })),
-                    classroom.courses.topics.list({ courseId }).catch(() => ({ data: { topic: [] } }))
-                ]);
+        sql += ` ORDER BY ss.update_time DESC`;
 
-                const students = studentsRes.data.students || [];
-                const courseWork = courseWorkRes.data.courseWork || [];
-                const topics = topicsRes.data.topic || [];
-
-                if (courseWork.length === 0) return null;
-                
-                const topicMap = new Map(topics.map(t => [t.topicId, t.name]));
-                const recentWork = courseWork.slice(0, 50);
-
-                const submissionsArrays = await runWithLimit(recentWork, 10, async (cw) => {
-                    try {
-                        const r = await classroom.courses.courseWork.studentSubmissions.list({
-                            courseId: course.id,
-                            courseWorkId: cw.id,
-                            pageSize: 100
-                        });
-                        return r.data.studentSubmissions || [];
-                    } catch (e) { return []; }
-                });
-                
-                const submissions = submissionsArrays.flat();
-                if (submissions.length === 0) return null;
-
-                const studentMap = new Map(students.map(s => [s.userId, s.profile]));
-                const workMap = new Map(courseWork.map(cw => [cw.id, cw]));
-
-                const todoItems = submissions.map(sub => {
-                    const student = studentMap.get(sub.userId);
-                    const work = workMap.get(sub.courseWorkId);
-                    if (!student || !work) return null;
-
-                    return {
-                        id: sub.id,
-                        courseId: course.id,
-                        courseName: course.name,
-                        courseSection: course.section || '',
-                        workId: sub.courseWorkId,
-                        workTitle: work.title,
-                        workLink: work.alternateLink,
-                        topicId: work.topicId,
-                        topicName: topicMap.get(work.topicId) || 'Övrigt',
-                        studentId: sub.userId,
-                        studentName: student.name.fullName,
-                        studentPhoto: student.photoUrl,
-                        submissionLink: sub.alternateLink,
-                        updateTime: sub.updateTime,
-                        late: sub.late,
-                        state: sub.state,
-                        assignedGrade: sub.assignedGrade,
-                        maxPoints: work.maxPoints
-                    };
-                }).filter(Boolean);
-
-                if (todoItems.length > 0) {
-                    await injectStudentClasses(todoItems, req.session.userId);
-                }
-
-                if (todoItems.length === 0) return null;
-
-                return {
-                    courseId: course.id,
-                    courseName: course.name,
-                    studentCount: students.length,
-                    todos: todoItems
-                };
-
-            } catch (err) {
-                console.error(`Todo fetch failed for course ${course.id}:`, err.message);
-                return null;
+        db.all(sql, params, (err, rows) => {
+            if (err) {
+                console.error("Fetch todos DB error:", err);
+                return res.status(500).json({ error: 'Database error' });
             }
-        });
 
-        res.json(results.filter(Boolean));
+            // Group the flat rows by course to maintain frontend compatibility
+            const grouped = {};
+            rows.forEach(row => {
+                if (!grouped[row.courseId]) {
+                    grouped[row.courseId] = {
+                        courseId: row.courseId,
+                        courseName: row.courseName,
+                        courseSection: row.courseSection,
+                        todos: []
+                    };
+                }
+                
+                // Add the submission link (constructed or stored)
+                // Note: alternate_link for submissions is often workLink + some suffix,
+                // for now we use the work link.
+                row.submissionLink = row.workLink; 
+                
+                grouped[row.courseId].todos.push(row);
+            });
+
+            res.json(Object.values(grouped));
+        });
 
     } catch (error) {
         console.error('Global todo fetch error:', error);

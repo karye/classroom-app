@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import StreamView from './components/StreamView'
 import TodoView from './components/TodoView'
 import MatrixView from './components/MatrixView'
 import ScheduleView from './components/ScheduleView'
 import SettingsView from './components/SettingsView'
+import StatusBar from './components/common/StatusBar'
 import { dbClear } from './db'
 import './App.css'
 
@@ -15,23 +16,136 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState({}) 
   const [currentView, setCurrentView] = useState(localStorage.getItem('lastSelectedView') || 'matrix'); // 'matrix' | 'stream' | 'todo' | 'schedule'
   const [viewLoading, setViewLoading] = useState(false);
-
-  // Per-view course selection memory
-  const [viewCourseIds, setViewCourseIds] = useState(() => {
-    try {
-        const saved = localStorage.getItem('viewCourseIds');
-        return saved ? JSON.parse(saved) : { matrix: '', stream: '', todo: '' };
-    } catch (e) {
-        return { matrix: '', stream: '', todo: '' };
-    }
-  });
-
-  const selectedCourseId = viewCourseIds[currentView] || '';
+  const [isManualSync, setIsManualSync] = useState(false);
   
+  // Unified Course Data (Single Source of Truth)
+  const [currentCourseData, setCurrentCourseData] = useState(null);
+  const [courseDataLoading, setCourseDataLoading] = useState(false);
+
+  // New Sync Status State
+  const [syncStatus, setSyncStatus] = useState({ active: false, message: '', type: 'info' });
+
+  // Refresh triggers to talk to child components
+  const [refreshTriggers, setRefreshTriggers] = useState({ matrix: 0, stream: 0, todo: 0, schedule: 0 });
+  const [showSyncWarning, setShowSyncWarning] = useState(false);
+
   // Settings State
   const [excludeFilters, setExcludeFilters] = useState([]);
   const [excludeTopicFilters, setExcludeTopicFilters] = useState([]);
   const [hiddenCourseIds, setHiddenCourseIds] = useState([]);
+
+  // --- CENTRAL DATA FETCHING (WATERFALL) ---
+  const fetchCourseDetails = useCallback(async (courseId, force = false) => {
+      if (!courseId) {
+          setCurrentCourseData(null);
+          return;
+      }
+
+      setCourseDataLoading(true);
+      handleLoadingChange({ loading: true, message: force ? 'Synkar med Google...' : 'Hämtar data...' });
+
+      try {
+          const cacheKey = `course_cache_${courseId}`;
+          
+          // 1. Try Cache first if not forcing
+          if (!force) {
+              const { dbGet } = await import('./db');
+              const cached = await dbGet(cacheKey);
+              if (cached) {
+                  setCurrentCourseData(cached.data);
+                  const timeStr = new Date(cached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
+                  setCourseDataLoading(false);
+                  handleLoadingChange(false);
+                  return;
+              }
+          }
+
+          // 2. Try DB (or Google if force=true)
+          const url = `/api/courses/${courseId}/details${force ? '?refresh=true' : ''}`;
+          const res = await axios.get(url);
+          const data = res.data;
+          const now = Date.now();
+
+          setCurrentCourseData(data);
+          
+          const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
+
+          // 3. Update Cache
+          const { dbSet } = await import('./db');
+          await dbSet(cacheKey, { timestamp: now, data });
+
+          // 4. Trigger Todo refresh to incorporate new data into the aggregated list
+          setRefreshTriggers(prev => ({ ...prev, todo: prev.todo + 1 }));
+
+          handleLoadingChange({ 
+              loading: false, 
+              message: force ? `Synkade ${data.students?.length || 0} elever och ${data.coursework?.length || 0} uppgifter.` : null 
+          });
+      } catch (err) {
+          console.error("Waterfall fetch failed:", err);
+          handleLoadingChange({ loading: false, message: 'Kunde inte hämta data.' });
+      } finally {
+          setCourseDataLoading(false);
+      }
+  }, []);
+
+  const handleLoadingChange = useCallback((loadingState) => {
+      const isLoading = typeof loadingState === 'object' ? loadingState.loading : loadingState;
+      const customMessage = typeof loadingState === 'object' ? loadingState.message : null;
+
+      setViewLoading(isLoading);
+
+      if (isLoading) {
+          setSyncStatus({ 
+              active: true, 
+              message: customMessage || 'Hämtar data...', 
+              type: 'info' 
+          });
+      } else {
+          // When loading finishes, always clear the active status
+          setSyncStatus(prev => {
+              if (!prev.active && !customMessage) return prev; // No change needed
+              
+              const newState = { 
+                  active: false, 
+                  message: customMessage || 'Klar.', 
+                  type: customMessage?.includes('misslyckades') ? 'info' : 'success' 
+              };
+
+              // Auto-clear message after 5 seconds
+              setTimeout(() => {
+                  setSyncStatus(p => {
+                      if (!p.active) return { active: false, message: '', type: 'info' };
+                      return p;
+                  });
+              }, 5000);
+
+              return newState;
+          });
+          setIsManualSync(false); 
+      }
+  }, []);
+        const handleRefreshClick = () => {
+      setIsManualSync(true); // Enable toast for this operation
+      if (currentView === 'schedule') {
+          setShowSyncWarning(true);
+      } else if (selectedCourseId) {
+          fetchCourseDetails(selectedCourseId, true);
+      } else if (currentView === 'todo') {
+          setRefreshTriggers(prev => ({ ...prev, todo: prev.todo + 1 }));
+      }
+  };
+
+  const confirmGlobalSync = () => {
+      setIsManualSync(true); // Enable toast
+      setShowSyncWarning(false);
+      setRefreshTriggers(prev => ({ ...prev, schedule: prev.schedule + 1 }));
+  };
+
+  // Unified course selection for ALL views
+  const [selectedCourseId, setSelectedCourseId] = useState(localStorage.getItem('selectedCourseId') || '');
 
   const fetchSettings = async () => {
       try {
@@ -78,40 +192,20 @@ function App() {
       saveSettings(excludeFilters, excludeTopicFilters, newHidden);
   };
 
-  // Refresh triggers to talk to child components
-  const [refreshTriggers, setRefreshTriggers] = useState({ matrix: 0, stream: 0, todo: 0, schedule: 0 });
-  const [showSyncWarning, setShowSyncWarning] = useState(false);
-
-  axios.defaults.withCredentials = true;
-
-  const handleRefreshClick = () => {
-      if (currentView === 'schedule') {
-          setShowSyncWarning(true);
-      } else {
-          setRefreshTriggers(prev => ({ ...prev, [currentView]: prev[currentView] + 1 }));
-      }
-  };
-
-  const confirmGlobalSync = () => {
-      setShowSyncWarning(false);
-      setRefreshTriggers(prev => ({ ...prev, schedule: prev.schedule + 1 }));
-  };
-
-  useEffect(() => {
-    localStorage.setItem('lastSelectedView', currentView);
-    // When switching view, if that view has no course selected yet, pick the first visible one
-    const visibleCourses = courses.filter(c => !hiddenCourseIds.includes(c.id));
-    if (currentView !== 'schedule' && !viewCourseIds[currentView] && visibleCourses.length > 0) {
-        // We only auto-select for matrix/stream. Todo can stay as 'All' (empty string).
-        if (currentView === 'matrix' || currentView === 'stream') {
-            handleCourseChange(visibleCourses[0].id, currentView);
-        }
+  const fetchCourses = async () => {
+    try {
+      const res = await axios.get('/api/courses');
+      setCourses(res.data);
+    } catch (err) {
+      console.error("Failed to fetch courses", err);
     }
-  }, [currentView, courses, hiddenCourseIds]);
+  }
 
-  useEffect(() => {
-    checkLoginStatus();
-  }, [])
+  const handleCourseChange = (courseId) => {
+      setSelectedCourseId(courseId);
+      localStorage.setItem('selectedCourseId', courseId);
+      if (courseId) fetchCourseDetails(courseId, false);
+  }
 
   const checkLoginStatus = async () => {
     try {
@@ -130,39 +224,42 @@ function App() {
     }
   }
 
-  const fetchCourses = async () => {
-    try {
-      const res = await axios.get('/api/courses');
-      setCourses(res.data);
-    } catch (err) {
-      console.error("Failed to fetch courses", err);
-    }
-  }
+  axios.defaults.withCredentials = true;
 
-  const handleCourseChange = (courseId, view = currentView) => {
-      const nextViewCourseIds = { ...viewCourseIds, [view]: courseId };
-      setViewCourseIds(nextViewCourseIds);
-      localStorage.setItem('viewCourseIds', JSON.stringify(nextViewCourseIds));
-      
-      if (!courseId && view !== 'todo') {
-          // If clearing course in a view that requires it, fallback or stay as is? 
-          // For now, if user clears it in matrix/stream, let it be empty (shows message).
+  useEffect(() => {
+    checkLoginStatus();
+  }, [])
+
+  // Initial data load when selectedCourseId is restored from localStorage
+  useEffect(() => {
+      if (isLoggedIn && selectedCourseId && !currentCourseData && !courseDataLoading) {
+          fetchCourseDetails(selectedCourseId, false);
       }
-  }
+  }, [isLoggedIn, selectedCourseId, currentCourseData, courseDataLoading, fetchCourseDetails]);
+
+  useEffect(() => {
+    localStorage.setItem('lastSelectedView', currentView);
+    const visibleCourses = courses.filter(c => !hiddenCourseIds.includes(c.id));
+    
+    // Auto-select first course if none selected and we have visible courses
+    if (currentView !== 'schedule' && !selectedCourseId && visibleCourses.length > 0) {
+        handleCourseChange(visibleCourses[0].id);
+    }
+  }, [currentView, courses, hiddenCourseIds, selectedCourseId]);
 
   const handleLogin = () => { window.location.href = '/auth/google'; }
   
   const handleLogout = async () => {
       try {
           await axios.post('/api/logout');
-          await dbClear(); // Clear IndexedDB
-          localStorage.clear(); // Clear LocalStorage
+          await dbClear(); 
+          localStorage.clear(); 
           setIsLoggedIn(false); 
           setCourses([]);
       } catch (err) { console.error("Logout failed", err); }
   }
 
-  const visibleCourses = React.useMemo(() => courses.filter(c => !hiddenCourseIds.includes(c.id)), [courses, hiddenCourseIds]);
+  const visibleCoursesList = useMemo(() => courses.filter(c => !hiddenCourseIds.includes(c.id)), [courses, hiddenCourseIds]);
   const currentCourse = courses.find(c => c.id === selectedCourseId);
 
   if (loading) return (
@@ -188,7 +285,7 @@ function App() {
             <header className="bg-light border-bottom px-4 py-2 d-flex justify-content-between align-items-center shadow-sm z-10" style={{ minHeight: '60px' }}>
                 <div className="d-flex align-items-center gap-3">
                     <div className="d-flex align-items-center gap-2">
-                         <button className={`btn btn-sm ${currentView === 'schedule' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => { setCurrentView('schedule'); handleCourseChange('', 'schedule'); }} title="Schema & Planering (Alla kurser)">
+                         <button className={`btn btn-sm ${currentView === 'schedule' ? 'btn-primary' : 'btn-outline-primary'} d-flex align-items-center`} onClick={() => setCurrentView('schedule')} title="Schema & Planering (Alla kurser)">
                              <i className="bi bi-calendar-week fs-5"></i>
                          </button>
                          <div className="vr mx-2"></div>
@@ -209,7 +306,7 @@ function App() {
                     
                     <select className="form-select form-select-sm fw-bold border-primary" style={{ maxWidth: '300px', opacity: currentView === 'schedule' ? 0.5 : 1 }} value={selectedCourseId} onChange={(e) => handleCourseChange(e.target.value)} disabled={currentView === 'schedule'}>
                         <option value="">Alla klassrum (Todo)</option>
-                        {visibleCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {visibleCoursesList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                     {currentCourse && <a href={currentCourse.alternateLink} target="_blank" rel="noreferrer" className="btn btn-link btn-sm text-decoration-none" title="Öppna i Classroom"><i className="bi bi-box-arrow-up-right"></i></a>}
                 </div>
@@ -240,32 +337,34 @@ function App() {
                             onUpdateFilters={handleUpdateFilters}
                             excludeTopicFilters={excludeTopicFilters}
                             onUpdateTopicFilters={handleUpdateTopicFilters}
-                            onClose={() => setCurrentView('matrix')} // Default back to matrix
+                            onClose={() => setCurrentView('matrix')} 
                         />
                     </div>
                 ) : currentView === 'todo' ? (
                     <TodoView 
+                        courses={courses}
                         selectedCourseId={selectedCourseId} 
-                        refreshTrigger={refreshTriggers.todo} 
-                        onUpdate={(time) => setLastUpdated(prev => ({ ...prev, todo: time }))}
-                        onLoading={setViewLoading}
+                        currentCourseData={currentCourseData}
+                        onSync={() => fetchCourseDetails(selectedCourseId, true)}
+                        loading={courseDataLoading}
                         excludeFilters={excludeFilters}
                         excludeTopicFilters={excludeTopicFilters}
                     />
                 ) : currentView === 'schedule' ? (
                     <ScheduleView 
-                        courses={visibleCourses}
+                        courses={visibleCoursesList}
                         refreshTrigger={refreshTriggers.schedule || 0}
-                        onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} // Use generic key
-                        onLoading={setViewLoading}
+                        onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} 
+                        onLoading={handleLoadingChange}
                     />
                 ) : currentView === 'stream' ? (
                     selectedCourseId ? (
                         <StreamView 
                             courseId={selectedCourseId}
-                            refreshTrigger={refreshTriggers.stream}
+                            currentCourseData={currentCourseData}
+                            onSync={() => fetchCourseDetails(selectedCourseId, true)}
+                            loading={courseDataLoading}
                             onUpdate={(time) => setLastUpdated(prev => ({ ...prev, [selectedCourseId]: time }))}
-                            onLoading={setViewLoading}
                         />
                     ) : <div className="p-5 text-center text-muted">Välj ett klassrum ovan</div>
                 ) : (
@@ -273,9 +372,9 @@ function App() {
                         <MatrixView 
                             courseId={selectedCourseId}
                             courseName={currentCourse?.name}
-                            refreshTrigger={refreshTriggers.matrix}
-                            onUpdate={(time) => setLastUpdated(prev => ({ ...prev, [selectedCourseId]: time }))}
-                            onLoading={setViewLoading}
+                            currentCourseData={currentCourseData}
+                            onSync={() => fetchCourseDetails(selectedCourseId, true)}
+                            loading={courseDataLoading}
                             excludeFilters={excludeFilters}
                             excludeTopicFilters={excludeTopicFilters}
                         />
@@ -300,10 +399,20 @@ function App() {
                                 <button type="button" className="btn-close" onClick={() => setShowSyncWarning(false)}></button>
                             </div>
                             <div className="modal-body p-4">
-                                <p className="mb-0">
-                                    Du är på väg att uppdatera data för <strong>alla dina klassrum</strong> samtidigt. 
-                                    Detta hämtar både kalenderhändelser och inlämningsstatus för alla kurser.
+                                <p className="mb-2">
+                                    Du är på väg att uppdatera data för <strong>{visibleCoursesList.length} klassrum</strong>. 
+                                    Detta hämtar kalenderhändelser och inlämningsstatus för:
                                 </p>
+                                <div className="bg-light p-3 rounded border mb-3 overflow-auto" style={{ maxHeight: '150px' }}>
+                                    <ul className="list-unstyled mb-0 small">
+                                        {visibleCoursesList.map(c => (
+                                            <li key={c.id} className="d-flex align-items-center mb-1">
+                                                <i className="bi bi-check2-circle text-success me-2"></i>
+                                                {c.name}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
                                 <p className="mt-3 text-muted small mb-0">
                                     Detta kan ta en liten stund beroende på hur många kurser du har.
                                 </p>
@@ -318,6 +427,8 @@ function App() {
                     </div>
                 </div>
             )}
+            
+            <StatusBar status={syncStatus} />
         </>
       )}
     </div>

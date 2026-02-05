@@ -2,6 +2,34 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
+## 2026-02-05
+
+### ✨ Den Stora Unifieringen (Arkitektur & Data)
+*   **Vattenfallsmodellen (Waterfall Model):** Implementerat en strikt hierarkisk datahämtning: **Lokal Cache (IndexedDB)** ➔ **Backend Databas (SQLite)** ➔ **Google Classroom API**. Detta garanterar snabbhet och robusthet.
+*   **Single Source of Truth:** All data om det valda klassrummet bor nu i ett centralt state i `App.jsx`. Ingen vy har längre sin egen kopia, vilket eliminerar risken för osynkad data.
+*   **Enhetlig Synk-endpoint:** Skapat en "Master API"-rutt (`/details`) som hämtar allt för en kurs samtidigt (Elever, Uppgifter, Betyg, Topics och Flödesinlägg).
+*   **Gemensam Cache:** `MatrixView` och `StreamView` delar nu på samma cache-nyckel, vilket innebär att synkning i en vy omedelbart uppdaterar den andra.
+
+### 🎨 Design & UX (Likriktning)
+*   **Enhetlig Statusbar:** All visuell feedback vid synkning och laddning har flyttats till en global `StatusBar` längst ner.
+*   **Statisk EmptyState:** Tagit bort störande animationer mitt på skärmen vid laddning. Vyerna förblir lugna medan statusbaren visar aktivitet.
+*   **Globalt Kursval:** Tagit bort "vyminnet". Samma klassrum förblir nu valt oavsett vilken flik du växlar till, vilket skapar en mer sammanhängande upplevelse.
+*   **Förenklad Navigering:** När du växlar till Schema-vyn bevaras ditt nuvarande kursval i bakgrunden för sömlös återgång.
+*   **Hierarkisk Dashboard (Schema):** Byggt om sidopanelen i kalendern till en tydlig hierarki: **Klassrum ➔ Ämne ➔ Uppgift**.
+*   **Kollapsbara Kursblock:** Lagt till möjligheten att expandera/kollapsa kurser i schemats sidopanel.
+*   **Förbättrad Elevvisning:** Namnpiller i schemat visar nu "Förnamn + Efternamnsinitial" för snabbare identifiering.
+*   **Transparent Synk:** Bekräftelsemodalen för global synk listar nu exakt vilka klassrum som kommer att uppdateras.
+
+### 🛠 Arkitektur & Refaktorisering
+*   **Massiv Kodstädning:** Flyttat tung logik från vy-komponenter (`MatrixView`, `StreamView`, `TodoView`) till centrala funktioner i `App.jsx`.
+*   **Backend-utökning:** Lagt till en dedikerad tabell för `announcements` i SQLite och endpoints för flödesinlägg och enskilda kurstodos.
+*   **Buggfixar:**
+    *   Åtgärdat "Race Conditions" i kalendersynkningen.
+    *   Fixat buggar där statusbaren fastnade i laddningsläge efter nollställning.
+    *   Löst `ReferenceError` vid namnbyten i de nya unifierade flödena.
+
+---
+
 ## 2026-02-03
 
 ### ✨ Nya Funktioner
