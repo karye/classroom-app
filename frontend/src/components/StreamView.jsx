@@ -14,12 +14,13 @@ import ExportPreviewModal from './common/ExportPreviewModal';
 const StreamView = ({ 
     courseId, 
     currentCourseData: data, 
+    allNotes: notes,
+    onUpdateNote,
     onSync, 
     loading, 
     onUpdate 
 }) => {
     const [announcements, setAnnouncements] = useState([]);
-    const [notes, setNotes] = useState({});
     const [error, setError] = useState(null);
     const [editingNoteId, setEditingNoteId] = useState(null);
     const [tempNoteContent, setTempNoteContent] = useState("");
@@ -40,20 +41,6 @@ const StreamView = ({
         }
     }, [data]);
 
-    // Still fetch notes separately as they are user-specific and fast
-    useEffect(() => {
-        const fetchNotes = async () => {
-            if (!courseId) return;
-            try {
-                const notesRes = await axios.get(`/api/notes/${courseId}`);
-                setNotes(notesRes.data);
-            } catch (err) {
-                console.warn("Failed to fetch notes", err);
-            }
-        };
-        fetchNotes();
-    }, [courseId]);
-
     const handleSaveNote = async (postId, content) => {
         setSavingNote(true);
         try {
@@ -62,7 +49,7 @@ const StreamView = ({
                 postId,
                 content
             });
-            setNotes(prev => ({ ...prev, [postId]: content }));
+            onUpdateNote(postId, content); // Update central state in App.jsx
             setEditingNoteId(null);
         } catch (err) {
             console.error("Save error:", err);

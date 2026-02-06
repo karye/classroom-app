@@ -1,7 +1,7 @@
 import React from 'react';
 import { isSameDay, parseISO } from 'date-fns';
 
-const EventCard = ({ positionedEvent, allAnnouncements, selectedCourseName, onClick, todoCountsByCourse }) => {
+const EventCard = ({ positionedEvent, allAnnouncements, allNotes, selectedEvent, onClick, todoCountsByCourse }) => {
     const { event, style } = positionedEvent;
 
     // Helper to extract metadata
@@ -46,20 +46,32 @@ const EventCard = ({ positionedEvent, allAnnouncements, selectedCourseName, onCl
     const { group } = getEventMetadata(event.description);
     const theme = getCourseColor(event.courseName || event.summary);
     const todoCount = todoCountsByCourse[event.courseName || event.summary] || 0;
-    const isSelected = selectedCourseName === (event.courseName || event.summary);
+    
+    // Selection Logic
+    const isSpecificallySelected = selectedEvent?.id === event.id;
+    const isCourseSelected = selectedEvent?.courseName === (event.courseName || event.summary);
 
-    // Calculate REAL-TIME announcement count from central state
+    // Calculate REAL-TIME announcement and note count from central state
     const eventDate = parseISO(event.start.dateTime || event.start.date);
     const courseAnnouncements = allAnnouncements[event.courseId] || [];
-    const freshAnnouncementCount = courseAnnouncements.filter(ann => {
+    
+    // Find announcements for this day
+    const dayAnnouncements = courseAnnouncements.filter(ann => {
         const annDate = parseISO(ann.scheduledTime || ann.updateTime);
         return isSameDay(annDate, eventDate);
-    }).length;
+    });
+
+    const freshAnnouncementCount = dayAnnouncements.length;
+    
+    // Check if any of THESE announcements have notes in the central state
+    const freshNoteCount = dayAnnouncements.filter(ann => allNotes[ann.id] && allNotes[ann.id].trim().length > 0).length;
 
     // Use fresh count if available, fallback to backend count if central state for this course is empty
     const finalAnnouncementCount = (courseAnnouncements.length > 0) ? freshAnnouncementCount : (event.announcementCount || 0);
+    const finalNoteCount = (courseAnnouncements.length > 0) ? freshNoteCount : (event.noteCount || 0);
+
     const hasAnnouncements = finalAnnouncementCount > 0;
-    const hasNotes = event.noteCount > 0; 
+    const hasNotes = finalNoteCount > 0; 
 
     // Title logic: Use group name (second row) as primary, fallback to course name
     const displayTitle = group || event.courseName || event.summary;
@@ -70,14 +82,16 @@ const EventCard = ({ positionedEvent, allAnnouncements, selectedCourseName, onCl
             style={{
                 ...style,
                 backgroundColor: theme.bg,
-                borderColor: isSelected ? 'black' : theme.border,
-                borderLeftWidth: '4px',
-                zIndex: 10,
+                borderColor: isSpecificallySelected ? '#000' : theme.border,
+                borderLeftWidth: isSpecificallySelected ? '6px' : '4px',
+                zIndex: isSpecificallySelected ? 15 : 10,
                 cursor: 'pointer',
-                boxShadow: isSelected ? '0 0 0 2px rgba(0,0,0,0.1)' : ''
+                boxShadow: isSpecificallySelected ? '0 0 10px rgba(0,0,0,0.2)' : (isCourseSelected ? '0 0 0 2px rgba(0,0,0,0.05)' : ''),
+                transform: isSpecificallySelected ? 'scale(1.02)' : 'scale(1)',
+                transition: 'all 0.1s ease-in-out'
             }}
             onClick={(e) => onClick(event, e)}
-            title={`${event.summary}\n${group ? `Grupp: ${group}` : ''}\n${event.location || ''}\n${hasAnnouncements ? `• ${finalAnnouncementCount} inlägg i flödet\n` : ''}${hasNotes ? `• ${event.noteCount} loggboksanteckningar\n` : ''}(Klicka för att se uppgifter)`}
+            title={`${event.summary}\n${group ? `Grupp: ${group}` : ''}\n${event.location || ''}\n${hasAnnouncements ? `• ${finalAnnouncementCount} inlägg i flödet\n` : ''}${hasNotes ? `• ${finalNoteCount} loggboksanteckningar\n` : ''}(Klicka för att se uppgifter)`}
         >
             {/* Title (Bold) */}
             <div className="fw-bold text-truncate small lh-1 mb-1" style={{ color: theme.text, fontSize: '0.75rem' }}>
@@ -97,7 +111,7 @@ const EventCard = ({ positionedEvent, allAnnouncements, selectedCourseName, onCl
                     <i className="bi bi-chat-left-text-fill text-primary" style={{ fontSize: '0.65rem' }} title={`${finalAnnouncementCount} inlägg i flödet`}></i>
                 )}
                 {hasNotes && (
-                    <i className="bi bi-journal-text text-warning" style={{ fontSize: '0.7rem' }} title={`${event.noteCount} loggboksanteckningar`}></i>
+                    <i className="bi bi-journal-text text-warning" style={{ fontSize: '0.7rem' }} title={`${finalNoteCount} loggboksanteckningar`}></i>
                 )}
                 {todoCount > 0 && (
                     <span className="badge rounded-pill bg-danger border border-white border-1 px-1" style={{ fontSize: '0.55rem', minWidth: '16px' }} title={`${todoCount} inlämningar att rätta`}>

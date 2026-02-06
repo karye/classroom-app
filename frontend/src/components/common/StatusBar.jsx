@@ -1,6 +1,6 @@
 import React from 'react';
 
-const StatusBar = ({ status }) => {
+const StatusBar = ({ status, lastUpdated }) => {
     const active = status?.active;
     const message = status?.message || 'Redo';
     const type = status?.type || 'info';
@@ -21,7 +21,7 @@ const StatusBar = ({ status }) => {
 
     return (
         <div className={`${bgClass} px-3 border-top d-flex align-items-center justify-content-between shadow-lg`} style={{ height: '24px', fontSize: '0.7rem', transition: 'all 0.3s ease', zIndex: 1000 }}>
-            <div className="d-flex align-items-center gap-3 overflow-hidden w-100">
+            <div className="d-flex align-items-center gap-3 overflow-hidden flex-grow-1">
                 <div className="d-flex align-items-center gap-2 flex-shrink-0">
                     <i className={`bi ${icon}`}></i>
                     <span className="fw-bold" style={{ letterSpacing: '0.03rem', opacity: 0.8 }}>
@@ -29,16 +29,24 @@ const StatusBar = ({ status }) => {
                     </span>
                 </div>
                 <div className="vr opacity-25 h-75"></div>
-                <div className="text-truncate">
+                <div className="text-truncate flex-grow-1">
                     {message}
                 </div>
             </div>
             
-            {active && (
-                <div className="progress flex-shrink-0" style={{ width: '60px', height: '3px', backgroundColor: 'rgba(255,255,255,0.2)' }}>
-                    <div className="progress-bar progress-bar-striped progress-bar-animated bg-white w-100"></div>
-                </div>
-            )}
+            <div className="d-flex align-items-center gap-3 flex-shrink-0">
+                {lastUpdated && !active && (
+                    <div className="text-white-50 small opacity-75">
+                        <i className="bi bi-clock-history me-1"></i> Uppdaterad {lastUpdated}
+                    </div>
+                )}
+
+                {active && (
+                    <div className="progress" style={{ width: '60px', height: '3px', backgroundColor: 'rgba(255,255,255,0.2)' }}>
+                        <div className="progress-bar progress-bar-striped progress-bar-animated bg-white w-100"></div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

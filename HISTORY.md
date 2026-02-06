@@ -2,6 +2,33 @@
 
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
+## 2026-02-06
+
+### ✨ Den Slutgiltiga Unifieringen (Arkitektur & Synk)
+*   **Total Single Source of Truth:** `App.jsx` äger nu all sanning för hela applikationen. Detta inkluderar kalenderhändelser, flödesinlägg, betyg och privata anteckningar. All data delas i realtid mellan alla vyer.
+*   **Intelligent Realtidsmatchning:** Schemavyn (kalendern) räknar nu ut sina egna ikoner för inlägg och anteckningar direkt i webbläsaren. Detta innebär att en synk i flödet omedelbart syns i kalendern utan att schemat behöver laddas om.
+*   **Smart Synk-motor:** Likriktat alla "Uppdatera"-knappar. Knappen i sidhuvudet förstår nu kontexten: står du i en kurs uppdateras allt för den kursen; står du i en global vy (Schema/Todo) triggas en global synk för alla aktiva kurser.
+*   **Unifierad Hydrering:** Vid start läser appen nu in all cachad data för samtliga kurser samtidigt. Detta gör att alla vyer är "varma" och redo med information direkt vid inloggning.
+*   **Säkrare API:** Utökat händelse-API:et till att inkludera `course_id` för varje lektion för att garantera 100% exakt matchning mot Classroom-data.
+
+### 🎨 Design & UX (Finputsning)
+*   **Interaktiv Lektionslogg:** Klick på en lektion i schemat öppnar nu en detaljerad "Lektionslogg" i sidopanelen. Här kan läraren läsa Classroom-inlägg och sina egna privata anteckningar sida vid sida med uppgifter som ska rättas.
+*   **Förbättrad Kalenderlayout:** 
+    *   Rensat bort tekniska kurskoder från lektionskorten.
+    *   Gruppnamn (t.ex. TE23A) används nu som tydlig huvudrubrik.
+    *   Markering av vald lektion med tjock svart kant, skalning och skugga.
+*   **Städad Sidopanel:** Ny visuell hierarki med kursfärgade piller, tydliga sektioner ("Att rätta i kursen" och "Anteckningar") och strikt följsamhet till svenska skrivregler (meningsversal).
+*   **Statusrad 2.0:** Flyttat texten "Uppdaterad HH:mm" från sidhuvudet till den globala statusraden längst ner för ett renare gränssnitt.
+*   **Stöd för Schemalagda Inlägg:** Appen hämtar och visar nu även schemalagda inlägg (drafts) i både flödet och kalendern. Dessa markeras med en tydlig gul badge.
+*   **Smart Matris-summa:** Matrisen känner nu av om en grupp innehåller poänguppgifter eller inte. För övriga grupper (t.ex. övningar) visas nu antal klara uppgifter istället för att felaktigt visa 0 i betyg.
+
+### 🛠 Buggfixar & Stabilitet
+*   **Loop-skydd:** Åtgärdat en "feedback-loop" i schemavyn där rapportering av laddningsstatus triggade oändliga omrenderingar.
+*   **Referenssäkerhet:** Omstrukturerat `App.jsx` för att eliminera `ReferenceError` vid uppstart genom att garantera korrekt initieringsordning.
+*   **Datum-robusthet:** Bytt till `strftime` i backenden för att säkerställa korrekt datummatchning oavsett tidszoner eller millisekunder.
+
+---
+
 ## 2026-02-05
 
 ### ✨ Den Stora Unifieringen (Arkitektur & Data)

@@ -10,32 +10,99 @@ import { dbClear } from './db'
 import './App.css'
 
 function App() {
+  // --- 1. STATE DECLARATIONS ---
   const [courses, setCourses] = useState([])
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState({}) 
-  const [currentView, setCurrentView] = useState(localStorage.getItem('lastSelectedView') || 'matrix'); // 'matrix' | 'stream' | 'todo' | 'schedule'
+  const [currentView, setCurrentView] = useState(localStorage.getItem('lastSelectedView') || 'matrix');
   const [viewLoading, setViewLoading] = useState(false);
   const [isManualSync, setIsManualSync] = useState(false);
   
-  // Unified Course Data (Single Source of Truth)
   const [currentCourseData, setCurrentCourseData] = useState(null);
-  const [allAnnouncements, setAllAnnouncements] = useState({}); // courseId -> announcements[]
+  const [allAnnouncements, setAllAnnouncements] = useState({}); 
+  const [allNotes, setAllNotes] = useState({}); // postId -> content string
+  const [allEvents, setAllEvents] = useState([]); 
   const [courseDataLoading, setCourseDataLoading] = useState(false);
 
-  // New Sync Status State
   const [syncStatus, setSyncStatus] = useState({ active: false, message: '', type: 'info' });
-
-  // Refresh triggers to talk to child components
   const [refreshTriggers, setRefreshTriggers] = useState({ matrix: 0, stream: 0, todo: 0, schedule: 0 });
   const [showSyncWarning, setShowSyncWarning] = useState(false);
 
-  // Settings State
   const [excludeFilters, setExcludeFilters] = useState([]);
   const [excludeTopicFilters, setExcludeTopicFilters] = useState([]);
   const [hiddenCourseIds, setHiddenCourseIds] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState(localStorage.getItem('selectedCourseId') || '');
 
-  // --- CENTRAL DATA FETCHING (WATERFALL) ---
+  // --- 2. MEMOIZED DATA ---
+  const visibleCoursesList = useMemo(() => courses.filter(c => !hiddenCourseIds.includes(c.id)), [courses, hiddenCourseIds]);
+  const currentCourse = useMemo(() => courses.find(c => c.id === selectedCourseId), [courses, selectedCourseId]);
+
+  // --- 3. CALLBACK FUNCTIONS ---
+  const handleLoadingChange = useCallback((loadingState) => {
+      const isLoading = typeof loadingState === 'object' ? loadingState.loading : loadingState;
+      const customMessage = typeof loadingState === 'object' ? loadingState.message : null;
+
+      setViewLoading(isLoading);
+
+      if (isLoading) {
+          setSyncStatus({ active: true, message: customMessage || 'Hämtar data...', type: 'info' });
+      } else {
+          setSyncStatus(prev => {
+              if (!prev.active && !customMessage) return prev;
+              const newState = { 
+                  active: false, 
+                  message: customMessage || 'Klar.', 
+                  type: customMessage?.includes('misslyckades') ? 'info' : 'success' 
+              };
+              setTimeout(() => {
+                  setSyncStatus(p => (!p.active ? { active: false, message: '', type: 'info' } : p));
+              }, 5000);
+              return newState;
+          });
+          setIsManualSync(false); 
+      }
+  }, []);
+
+  const fetchCalendarEvents = useCallback(async (courseIds, force = false) => {
+      if (!courseIds || courseIds.length === 0) return;
+      const cacheKey = `schedule_cache_global`;
+      const { dbGet, dbSet } = await import('./db');
+
+      if (!force) {
+          const cached = await dbGet(cacheKey);
+          if (cached) {
+              setAllEvents(cached.data);
+              setLastUpdated(prev => ({ ...prev, schedule: new Date(cached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
+              return;
+          }
+      }
+
+      try {
+          const res = await axios.get(`/api/events?refresh=true`, { params: { courseIds } });
+          setAllEvents(res.data);
+          const now = Date.now();
+          setLastUpdated(prev => ({ ...prev, schedule: new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
+          await dbSet(cacheKey, { timestamp: now, data: res.data });
+      } catch (err) {
+          console.error("Failed to fetch calendar events:", err);
+      }
+  }, []);
+
+  const fetchNotes = useCallback(async (courseId) => {
+      if (!courseId) return;
+      try {
+          const res = await axios.get(`/api/notes/${courseId}`);
+          setAllNotes(prev => ({ ...prev, ...res.data }));
+      } catch (err) {
+          console.warn("Failed to fetch notes:", err);
+      }
+  }, []);
+
+  const updateNoteLocally = useCallback((postId, content) => {
+      setAllNotes(prev => ({ ...prev, [postId]: content }));
+  }, []);
+
   const fetchCourseDetails = useCallback(async (courseId, force = false) => {
       if (!courseId) {
           setCurrentCourseData(null);
@@ -46,17 +113,16 @@ function App() {
       handleLoadingChange({ loading: true, message: force ? 'Synkar med Google...' : 'Hämtar data...' });
 
       try {
+          // Fetch notes in parallel with other data
+          fetchNotes(courseId);
+
           const cacheKey = `course_cache_${courseId}`;
-          
-          // 1. Try Cache first if not forcing
           if (!force) {
               const { dbGet } = await import('./db');
               const cached = await dbGet(cacheKey);
               if (cached) {
                   setCurrentCourseData(cached.data);
-                  if (cached.data.announcements) {
-                      setAllAnnouncements(prev => ({ ...prev, [courseId]: cached.data.announcements }));
-                  }
+                  if (cached.data.announcements) setAllAnnouncements(prev => ({ ...prev, [courseId]: cached.data.announcements }));
                   const timeStr = new Date(cached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                   setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
                   setCourseDataLoading(false);
@@ -65,198 +131,172 @@ function App() {
               }
           }
 
-          // 2. Try DB (or Google if force=true)
           const url = `/api/courses/${courseId}/details${force ? '?refresh=true' : ''}`;
           const res = await axios.get(url);
           const data = res.data;
           const now = Date.now();
 
           setCurrentCourseData(data);
-          if (data.announcements) {
-              setAllAnnouncements(prev => ({ ...prev, [courseId]: data.announcements }));
-          }
-          
+          if (data.announcements) setAllAnnouncements(prev => ({ ...prev, [courseId]: data.announcements }));
           const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
 
-          // 3. Update Cache
           const { dbSet } = await import('./db');
           await dbSet(cacheKey, { timestamp: now, data });
-
-          // 4. Trigger Todo refresh to incorporate new data into the aggregated list
           setRefreshTriggers(prev => ({ ...prev, todo: prev.todo + 1 }));
-
-          handleLoadingChange({ 
-              loading: false, 
-              message: force ? `Synkade ${data.students?.length || 0} elever och ${data.coursework?.length || 0} uppgifter.` : null 
-          });
+          handleLoadingChange({ loading: false, message: force ? `Synkade ${data.students?.length || 0} elever.` : null });
       } catch (err) {
           console.error("Waterfall fetch failed:", err);
           handleLoadingChange({ loading: false, message: 'Kunde inte hämta data.' });
       } finally {
           setCourseDataLoading(false);
       }
-  }, []);
+  }, [handleLoadingChange]);
 
-  const handleLoadingChange = useCallback((loadingState) => {
-      const isLoading = typeof loadingState === 'object' ? loadingState.loading : loadingState;
-      const customMessage = typeof loadingState === 'object' ? loadingState.message : null;
+  const handleCourseChange = useCallback((courseId) => {
+      setSelectedCourseId(courseId);
+      localStorage.setItem('selectedCourseId', courseId);
+      if (courseId) fetchCourseDetails(courseId, false);
+  }, [fetchCourseDetails]);
 
-      setViewLoading(isLoading);
-
-      if (isLoading) {
-          setSyncStatus({ 
-              active: true, 
-              message: customMessage || 'Hämtar data...', 
-              type: 'info' 
-          });
-      } else {
-          // When loading finishes, always clear the active status
-          setSyncStatus(prev => {
-              if (!prev.active && !customMessage) return prev; // No change needed
-              
-              const newState = { 
-                  active: false, 
-                  message: customMessage || 'Klar.', 
-                  type: customMessage?.includes('misslyckades') ? 'info' : 'success' 
-              };
-
-              // Auto-clear message after 5 seconds
-              setTimeout(() => {
-                  setSyncStatus(p => {
-                      if (!p.active) return { active: false, message: '', type: 'info' };
-                      return p;
-                  });
-              }, 5000);
-
-              return newState;
-          });
-          setIsManualSync(false); 
-      }
-  }, []);
-        const handleRefreshClick = () => {
-      setIsManualSync(true); // Enable toast for this operation
-      if (currentView === 'schedule') {
-          setShowSyncWarning(true);
-      } else if (selectedCourseId) {
-          fetchCourseDetails(selectedCourseId, true);
-      } else if (currentView === 'todo') {
-          setRefreshTriggers(prev => ({ ...prev, todo: prev.todo + 1 }));
-      }
-  };
-
-  const confirmGlobalSync = () => {
-      setIsManualSync(true); // Enable toast
+  const confirmGlobalSync = useCallback(async () => {
+      setIsManualSync(true);
       setShowSyncWarning(false);
-      setRefreshTriggers(prev => ({ ...prev, schedule: prev.schedule + 1 }));
-  };
+      handleLoadingChange({ loading: true, message: 'Startar global synkning...' });
 
-  // Unified course selection for ALL views
-  const [selectedCourseId, setSelectedCourseId] = useState(localStorage.getItem('selectedCourseId') || '');
+      try {
+          const visibleIds = visibleCoursesList.map(c => c.id);
+          const idString = visibleIds.join(',');
 
-  const fetchSettings = async () => {
+          handleLoadingChange({ loading: true, message: 'Synkar kalender...' });
+          await fetchCalendarEvents(idString, true);
+
+          for (let i = 0; i < visibleIds.length; i++) {
+              handleLoadingChange({ loading: true, message: `Synkar kurs ${i + 1} av ${visibleIds.length}...` });
+              await fetchCourseDetails(visibleIds[i], true);
+          }
+
+          setRefreshTriggers(prev => ({ 
+              matrix: prev.matrix + 1, 
+              stream: prev.stream + 1, 
+              todo: prev.todo + 1, 
+              schedule: prev.schedule + 1 
+          }));
+
+          handleLoadingChange({ loading: false, message: 'Global synkning slutförd!' });
+      } catch (err) {
+          console.error("Global sync failed:", err);
+          handleLoadingChange({ loading: false, message: 'Global synkning misslyckades.' });
+      }
+  }, [visibleCoursesList, fetchCalendarEvents, fetchCourseDetails, handleLoadingChange]);
+
+  const handleRefreshClick = useCallback(() => {
+      setIsManualSync(true);
+      
+      // Decisions:
+      // 1. If in schedule view, or in 'All Classrooms' Todo view -> Global Sync
+      if (currentView === 'schedule' || (currentView === 'todo' && !selectedCourseId)) {
+          setShowSyncWarning(true);
+      } 
+      // 2. If a specific course is selected -> Sync that course
+      else if (selectedCourseId) {
+          fetchCourseDetails(selectedCourseId, true);
+      }
+  }, [currentView, selectedCourseId, fetchCourseDetails]);
+
+  const fetchCourses = useCallback(async () => {
+    try {
+      const res = await axios.get('/api/courses');
+      setCourses(res.data);
+      return res.data;
+    } catch (err) { 
+      console.error("Failed to fetch courses", err); 
+      return [];
+    }
+  }, []);
+
+  const loadAllCachedData = useCallback(async (courseList) => {
+      const { dbGet, dbGetAllKeys } = await import('./db');
+      const allKeys = await dbGetAllKeys();
+      
+      console.log("[CACHE] Loading all cached data...");
+      
+      // 1. Load Calendar
+      const scheduleCached = await dbGet('schedule_cache_global');
+      if (scheduleCached) {
+          setAllEvents(scheduleCached.data);
+          setLastUpdated(prev => ({ ...prev, schedule: new Date(scheduleCached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
+      }
+
+      // 2. Load Course Details for all visible courses
+      for (const course of courseList) {
+          const courseCached = await dbGet(`course_cache_${course.id}`);
+          if (courseCached) {
+              if (courseCached.data.announcements) {
+                  setAllAnnouncements(prev => ({ ...prev, [course.id]: courseCached.data.announcements }));
+              }
+              const timeStr = new Date(courseCached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              setLastUpdated(prev => ({ ...prev, [course.id]: timeStr }));
+              
+              // If this is our currently selected course, set it as active
+              if (course.id === selectedCourseId) {
+                  setCurrentCourseData(courseCached.data);
+              }
+          }
+      }
+  }, [selectedCourseId]);
+
+  const fetchSettings = useCallback(async () => {
       try {
           const res = await axios.get('/api/settings');
           if (res.data.excludeFilters) setExcludeFilters(res.data.excludeFilters);
           if (res.data.excludeTopicFilters) setExcludeTopicFilters(res.data.excludeTopicFilters);
           if (res.data.hiddenCourseIds) setHiddenCourseIds(res.data.hiddenCourseIds);
-      } catch (err) {
-          console.error("Failed to fetch settings", err);
-      }
-  };
+      } catch (err) { console.error("Failed to fetch settings", err); }
+  }, []);
 
-  const saveSettings = async (assignments, topics, hiddenCourses) => {
+  const saveSettings = useCallback(async (assignments, topics, hiddenCourses) => {
       try {
           await axios.post('/api/settings', { 
-              excludeFilters: assignments, 
-              excludeTopicFilters: topics,
-              hiddenCourseIds: hiddenCourses
+              excludeFilters: assignments, excludeTopicFilters: topics, hiddenCourseIds: hiddenCourses
           });
-      } catch (err) {
-          console.error("Failed to save settings", err);
-      }
-  };
+      } catch (err) { console.error("Failed to save settings", err); }
+  }, []);
 
-  const handleUpdateFilters = (newFilters) => {
+  const handleUpdateFilters = useCallback((newFilters) => {
       setExcludeFilters(newFilters);
       saveSettings(newFilters, excludeTopicFilters, hiddenCourseIds);
-  };
+  }, [excludeTopicFilters, hiddenCourseIds, saveSettings]);
 
-  const handleUpdateTopicFilters = (newFilters) => {
+  const handleUpdateTopicFilters = useCallback((newFilters) => {
       setExcludeTopicFilters(newFilters);
       saveSettings(excludeFilters, newFilters, hiddenCourseIds);
-  };
+  }, [excludeFilters, hiddenCourseIds, saveSettings]);
 
-  const handleToggleCourse = (courseId) => {
+  const handleToggleCourse = useCallback((courseId) => {
       const isHidden = hiddenCourseIds.includes(courseId);
-      let newHidden;
-      if (isHidden) {
-          newHidden = hiddenCourseIds.filter(id => id !== courseId);
-      } else {
-          newHidden = [...hiddenCourseIds, courseId];
-      }
+      const newHidden = isHidden ? hiddenCourseIds.filter(id => id !== courseId) : [...hiddenCourseIds, courseId];
       setHiddenCourseIds(newHidden);
       saveSettings(excludeFilters, excludeTopicFilters, newHidden);
-  };
+  }, [hiddenCourseIds, excludeFilters, excludeTopicFilters, saveSettings]);
 
-  const fetchCourses = async () => {
-    try {
-      const res = await axios.get('/api/courses');
-      setCourses(res.data);
-    } catch (err) {
-      console.error("Failed to fetch courses", err);
-    }
-  }
-
-  const handleCourseChange = (courseId) => {
-      setSelectedCourseId(courseId);
-      localStorage.setItem('selectedCourseId', courseId);
-      if (courseId) fetchCourseDetails(courseId, false);
-  }
-
-  const checkLoginStatus = async () => {
+  const checkLoginStatus = useCallback(async () => {
     try {
       const res = await axios.get('/api/user');
       setIsLoggedIn(res.data.loggedIn);
       if (res.data.loggedIn) {
-        await Promise.all([
+        const [courseList] = await Promise.all([
             fetchCourses(),
             fetchSettings()
         ]);
+        // Hydrate all views from cache immediately
+        if (courseList) loadAllCachedData(courseList);
       }
-    } catch (err) {
-      console.error("Login check failed", err);
-    } finally {
-      setLoading(false);
-    }
-  }
+    } catch (err) { console.error("Login check failed", err); }
+    finally { setLoading(false); }
+  }, [fetchCourses, fetchSettings, loadAllCachedData]);
 
-  axios.defaults.withCredentials = true;
-
-  useEffect(() => {
-    checkLoginStatus();
-  }, [])
-
-  // Initial data load when selectedCourseId is restored from localStorage
-  useEffect(() => {
-      if (isLoggedIn && selectedCourseId && !currentCourseData && !courseDataLoading) {
-          fetchCourseDetails(selectedCourseId, false);
-      }
-  }, [isLoggedIn, selectedCourseId, currentCourseData, courseDataLoading, fetchCourseDetails]);
-
-  useEffect(() => {
-    localStorage.setItem('lastSelectedView', currentView);
-    const visibleCourses = courses.filter(c => !hiddenCourseIds.includes(c.id));
-    
-    // Auto-select first course if none selected and we have visible courses
-    if (currentView !== 'schedule' && !selectedCourseId && visibleCourses.length > 0) {
-        handleCourseChange(visibleCourses[0].id);
-    }
-  }, [currentView, courses, hiddenCourseIds, selectedCourseId]);
-
-  const handleLogin = () => { window.location.href = '/auth/google'; }
-  
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
       try {
           await axios.post('/api/logout');
           await dbClear(); 
@@ -264,11 +304,33 @@ function App() {
           setIsLoggedIn(false); 
           setCourses([]);
       } catch (err) { console.error("Logout failed", err); }
-  }
+  }, []);
 
-  const visibleCoursesList = useMemo(() => courses.filter(c => !hiddenCourseIds.includes(c.id)), [courses, hiddenCourseIds]);
-  const currentCourse = courses.find(c => c.id === selectedCourseId);
+  const handleLogin = () => { window.location.href = '/auth/google'; }
 
+  // --- 4. EFFECTS ---
+  useEffect(() => { axios.defaults.withCredentials = true; checkLoginStatus(); }, [checkLoginStatus]);
+
+  useEffect(() => {
+      if (isLoggedIn && selectedCourseId && !currentCourseData && !courseDataLoading) {
+          fetchCourseDetails(selectedCourseId, false);
+      }
+  }, [isLoggedIn, selectedCourseId, currentCourseData, courseDataLoading, fetchCourseDetails]);
+
+  useEffect(() => {
+      if (isLoggedIn && visibleCoursesList.length > 0 && allEvents.length === 0) {
+          fetchCalendarEvents(visibleCoursesList.map(c => c.id).join(','), false);
+      }
+  }, [isLoggedIn, visibleCoursesList, allEvents.length, fetchCalendarEvents]);
+
+  useEffect(() => {
+    localStorage.setItem('lastSelectedView', currentView);
+    if (currentView !== 'schedule' && !selectedCourseId && visibleCoursesList.length > 0) {
+        handleCourseChange(visibleCoursesList[0].id);
+    }
+  }, [currentView, visibleCoursesList, selectedCourseId, handleCourseChange]);
+
+  // --- 5. RENDER ---
   if (loading) return (
       <div className="d-flex justify-content-center align-items-center vh-100">
           <div className="spinner-border text-primary" role="status"><span className="visually-hidden">Laddar...</span></div>
@@ -318,9 +380,6 @@ function App() {
                     {currentCourse && <a href={currentCourse.alternateLink} target="_blank" rel="noreferrer" className="btn btn-link btn-sm text-decoration-none" title="Öppna i Classroom"><i className="bi bi-box-arrow-up-right"></i></a>}
                 </div>
                 <div className="d-flex align-items-center gap-2">
-                    <div className="text-muted small d-none d-md-block me-1">
-                        {lastUpdated[currentView === 'todo' ? 'todo' : selectedCourseId] && <span>Uppdaterad {lastUpdated[currentView === 'todo' ? 'todo' : selectedCourseId]}</span>}
-                    </div>
                     <button onClick={handleRefreshClick} 
                         className={`btn btn-sm d-flex align-items-center gap-2 ${viewLoading ? 'btn-outline-primary' : 'btn-outline-secondary'}`}
                         title="Hämta senaste data från Google Classroom"
@@ -352,7 +411,7 @@ function App() {
                         courses={courses}
                         selectedCourseId={selectedCourseId} 
                         currentCourseData={currentCourseData}
-                        onSync={() => fetchCourseDetails(selectedCourseId, true)}
+                        onSync={handleRefreshClick}
                         loading={courseDataLoading}
                         excludeFilters={excludeFilters}
                         excludeTopicFilters={excludeTopicFilters}
@@ -360,8 +419,10 @@ function App() {
                 ) : currentView === 'schedule' ? (
                     <ScheduleView 
                         courses={visibleCoursesList}
+                        events={allEvents}
                         allAnnouncements={allAnnouncements}
-                        refreshTrigger={refreshTriggers.schedule || 0}
+                        allNotes={allNotes}
+                        refreshTrigger={refreshTriggers.schedule}
                         onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} 
                         onLoading={handleLoadingChange}
                         excludeFilters={excludeFilters}
@@ -372,7 +433,9 @@ function App() {
                         <StreamView 
                             courseId={selectedCourseId}
                             currentCourseData={currentCourseData}
-                            onSync={() => fetchCourseDetails(selectedCourseId, true)}
+                            allNotes={allNotes}
+                            onUpdateNote={updateNoteLocally}
+                            onSync={handleRefreshClick}
                             loading={courseDataLoading}
                             onUpdate={(time) => setLastUpdated(prev => ({ ...prev, [selectedCourseId]: time }))}
                         />
@@ -383,7 +446,7 @@ function App() {
                             courseId={selectedCourseId}
                             courseName={currentCourse?.name}
                             currentCourseData={currentCourseData}
-                            onSync={() => fetchCourseDetails(selectedCourseId, true)}
+                            onSync={handleRefreshClick}
                             loading={courseDataLoading}
                             excludeFilters={excludeFilters}
                             excludeTopicFilters={excludeTopicFilters}
@@ -438,7 +501,10 @@ function App() {
                 </div>
             )}
             
-            <StatusBar status={syncStatus} />
+            <StatusBar 
+                status={syncStatus} 
+                lastUpdated={lastUpdated[currentView === 'schedule' ? 'schedule' : (currentView === 'todo' ? 'todo' : selectedCourseId)]} 
+            />
         </>
       )}
     </div>

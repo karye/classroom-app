@@ -149,7 +149,9 @@ const MatrixTable = ({
                                 let summaryContent = '-';
                                 let summaryInlineStyle = { fontSize: '0.8rem' };
                                 
-                                if (showGraded) {
+                                // Smart summary: Use grade/weight if we want graded AND the topic actually has points.
+                                // Otherwise (e.g. for exercises), use completion count.
+                                if (showGraded && topicHasPoints) {
                                     if (bestWeight >= 80) {
                                         if (showHeatmap && displayPct > 0) {
                                             summaryInlineStyle.backgroundColor = getGradeColorByPercent(displayPct);
@@ -218,8 +220,9 @@ const MatrixTable = ({
                                             let content = '-';
                                             let bg = '#f8f9fa';
                                             let color = 'inherit';
+                                            const topicHasPoints = group.assignments.some(a => a.maxPoints > 0);
         
-                                            if (showGraded) {
+                                            if (showGraded && topicHasPoints) {
                                                 let sum = 0, count = 0;
                                                 details.students.forEach(std => {
                                                     let max = -1, hasGrade = false;

@@ -39,11 +39,15 @@ Detta dokument beskriver den planerade utvecklingen för **Classroom Matrix Dash
 
 ## ✅ Avklarat & Genomfört
 
+*   **Den stora unifieringen:** `App.jsx` är nu den enda källan till sanning för all data (Schema, Stream, Betyg).
+*   **Intelligent synkronisering:** Enhetlig uppdateringslogik som förstår kontexten.
+*   **Realtidslogik i kalendern:** Inlägg och anteckningar matchas direkt i webbläsaren.
+*   **Lektionslogg:** Se Classroom-inlägg och privata anteckningar direkt i schemat.
+*   **Stöd för framtiden:** Visning av schemalagda inlägg i flödet och kalendern.
 *   **Migration till IndexedDB:** Fullt stöd för stora datamängder utan webbläsarbegränsningar.
-*   **Globala Filter:** Möjlighet att dölja specifika uppgifter och ämnen.
+*   **Globala filter:** Möjlighet att dölja specifika uppgifter och ämnen.
 *   **Elevsammanställning:** Snyggt "betygskort" med alla resultat, redo för utskrift.
-*   **Persistent Settings:** Inställningar sparas nu på servern per användare.
-*   **Modulär arkitektur:** Renare kodbas med dedikerade vy-komponenter.
+*   **Persistent settings:** Inställningar sparas nu på servern per användare.
 
 ---
 

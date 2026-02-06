@@ -78,7 +78,7 @@ const PostCard = ({
                     
                     {hasMaterials && (
                         <div className="mt-4 mb-3">
-                            <h6 className="text-muted small fw-bold mb-2">MATERIAL</h6>
+                            <h6 className="text-muted small fw-bold mb-2">Material</h6>
                             <div className="d-flex flex-wrap gap-2">
                                 {post.materials.map((mat, idx) => renderMaterialCompact(mat, idx))}
                             </div>
@@ -88,7 +88,7 @@ const PostCard = ({
                     <div className="mt-4 bg-light p-3 rounded border-start border-3 border-primary bg-opacity-10">
                         <div className="d-flex justify-content-between align-items-center mb-2">
                             <h6 className="small text-primary fw-bold mb-0">
-                                <i className="bi bi-journal-text me-2"></i>LOGGBOK (Markdown)
+                                <i className="bi bi-journal-text me-2"></i>Loggbok (Markdown)
                             </h6>
                             {editingNoteId !== post.id && (
                                 <button 

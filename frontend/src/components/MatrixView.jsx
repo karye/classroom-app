@@ -68,7 +68,7 @@ const MatrixView = ({
     }, [details, sortType, groupedWork]);
 
     // Helpers
-    const showGraded = assignmentFilter === 'all' || assignmentFilter.startsWith('cat-');
+    const showGraded = assignmentFilter === 'all' || assignmentFilter === 'cat-prov' || assignmentFilter === 'cat-uppgifter';
     const selectedStudentData = details?.students.find(s => s.userId === selectedStudent);
 
     const onExportClick = () => {

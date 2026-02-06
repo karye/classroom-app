@@ -4,7 +4,7 @@ import { sv } from 'date-fns/locale';
 import { layoutEventsForDay, CONSTANTS } from '../../utils/calendarLayout';
 import EventCard from './EventCard';
 
-const DayColumn = ({ day, allAnnouncements, events, selectedCourseName, onEventClick, todoCountsByCourse }) => {
+const DayColumn = ({ day, allAnnouncements, allNotes, events, selectedEvent, onEventClick, todoCountsByCourse }) => {
     const isToday = isSameDay(day, new Date());
     const positionedEvents = layoutEventsForDay(events);
 
@@ -33,7 +33,8 @@ const DayColumn = ({ day, allAnnouncements, events, selectedCourseName, onEventC
                         key={item.event.id}
                         positionedEvent={item}
                         allAnnouncements={allAnnouncements}
-                        selectedCourseName={selectedCourseName}
+                        allNotes={allNotes}
+                        selectedEvent={selectedEvent}
                         onClick={onEventClick}
                         todoCountsByCourse={todoCountsByCourse}
                     />

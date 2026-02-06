@@ -11,17 +11,16 @@ En fullstack webbapplikation för lärare att visualisera, planera och följa el
 *   **Action-fokus:** Ljusblå markering visar omedelbart var din insats (rättning) behövs.
 *   **Export:** Exportera betyg och status till Excel-kompatibel CSV.
 
-### 📅 Schema & Planering (NY!)
+### 📅 Schema & Planering
 *   **Veckovy:** Ett globalt schema som visar lektioner från *alla* dina aktiva kurser samtidigt.
-*   **Smart Kalender-synk:** Ny poängbaserad algoritm matchar lektioner till rätt kurs (hanterar parallella klasser exakt).
-*   **Interaktiv Dashboard:** Klicka på en lektion för att se "Att rätta" specifikt för den kursen direkt i sidopanelen.
-*   **Optimerad Prestanda:** Synkar endast synliga kurser för snabbare laddningstider.
+*   **Smart kalender-synk:** Poängbaserad algoritm matchar lektioner till rätt kurs exakt.
+*   **Interaktiv lektionslogg:** Klicka på en lektion för att läsa Classroom-inlägg och privata anteckningar för just det passet.
+*   **Realtidsmatchning:** Inlägg som synkas i flödet dyker upp som ikoner i schemat omedelbart.
 
 ### 📝 Stream & Loggbok
-*   **Kursflöde:** Läs inlägg och material med smidig kalendernavigering.
-*   **Sökbart:** Filtrera inlägg snabbt på textinnehåll.
-*   **Privat Loggbok:** Skriv krypterade lektionsanteckningar kopplade till inlägg.
-*   **Offline-stöd:** Cachad data visas även om nätverket svajar.
+*   **Planering framåt:** Fullt stöd för att se och förbereda anteckningar för schemalagda inlägg.
+*   **Privat loggbok:** Skriv krypterade lektionsanteckningar kopplade till inlägg.
+*   **Offline-stöd:** Centraliserad cache som laddas direkt vid start för omedelbar tillgång till all data.
 
 ### ✅ Todo (Att Göra)
 *   **Enhetlig Filtrering:** Växla enkelt mellan "Alla", "Prov" (Poängsatta) och "Uppgifter" (Ej poängsatta).
