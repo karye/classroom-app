@@ -24,7 +24,7 @@ const StatusBar = ({ status }) => {
             <div className="d-flex align-items-center gap-3 overflow-hidden w-100">
                 <div className="d-flex align-items-center gap-2 flex-shrink-0">
                     <i className={`bi ${icon}`}></i>
-                    <span className="fw-bold text-uppercase" style={{ letterSpacing: '0.03rem', opacity: 0.8 }}>
+                    <span className="fw-bold" style={{ letterSpacing: '0.03rem', opacity: 0.8 }}>
                         {active ? 'Synkroniserar' : 'Status'}
                     </span>
                 </div>

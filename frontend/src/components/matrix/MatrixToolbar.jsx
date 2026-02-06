@@ -30,9 +30,9 @@ const MatrixToolbar = ({
                             style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }}
                          >
                             <option value="all">Alla uppgifter</option>
-                            <option value="cat-prov">Visa: Prov</option>
-                            <option value="cat-uppgifter">Visa: Uppgifter</option>
-                            <option value="cat-none">Visa: Övningar (Ingen kategori)</option>
+                            <option value="cat-prov">Visa: prov</option>
+                            <option value="cat-uppgifter">Visa: uppgifter</option>
+                            <option value="cat-none">Visa: övningar (ingen kategori)</option>
                          </select>
                     </div>
 
@@ -56,18 +56,18 @@ const MatrixToolbar = ({
                     <div className="d-flex align-items-center gap-2">
                         <i className="bi bi-sort-down text-muted"></i>
                         <select onChange={(e) => setSortType(e.target.value)} value={sortType} className="form-select form-select-sm border-0 fw-bold text-dark bg-transparent ps-0" style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }}>
-                            <option value="name-asc">Sortera: A-Ö</option>
-                            <option value="name-desc">Sortera: Ö-A</option>
-                            <option value="perf-struggle">Sortera: Varning</option>
-                            <option value="perf-top">Sortera: Bäst</option>
-                            <option value="submission-desc">Sortera: Mest gjort</option>
+                            <option value="name-asc">Sortera: a–ö</option>
+                            <option value="name-desc">Sortera: ö–a</option>
+                            <option value="perf-struggle">Sortera: varning</option>
+                            <option value="perf-top">Sortera: bäst</option>
+                            <option value="submission-desc">Sortera: mest gjort</option>
                         </select>
                     </div>
                 </div>
 
                 {/* Export */}
                 <button onClick={onExport} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
-                    <i className="bi bi-file-earmark-spreadsheet fs-6"></i> Exportera Excel
+                    <i className="bi bi-file-earmark-spreadsheet fs-6"></i> Exportera excel
                 </button>
             </div>
         </div>

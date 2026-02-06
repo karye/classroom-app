@@ -33,7 +33,7 @@ const Feed = ({
                 ) : (
                     filteredAnnouncements.map((post) => {
                         const postDate = parseISO(post.updateTime);
-                        const currentMonth = format(postDate, "MMMM yyyy", { locale: sv }).toUpperCase();
+                        const currentMonth = format(postDate, "MMMM yyyy", { locale: sv });
                         const showMonthHeader = currentMonth !== lastMonth;
                         lastMonth = currentMonth;
 

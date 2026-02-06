@@ -62,10 +62,10 @@ const DashboardSidebar = ({ recentTodos, selectedCourseName, onClearFilter }) =>
         <div className="border-start bg-light overflow-auto custom-scrollbar d-flex flex-column" style={{ width: '320px', flexShrink: 0 }}>
             {/* Header */}
             <div className="p-3 bg-white border-bottom sticky-top z-10 shadow-sm">
-                <h6 className="text-uppercase text-muted fw-bold small mb-0 d-flex justify-content-between align-items-center">
+                <h6 className="text-muted fw-bold small mb-0 d-flex justify-content-between align-items-center">
                     <span>
                         <i className="bi bi-bell-fill me-2 text-danger"></i>
-                        {selectedCourseName ? 'Att rätta (Kurs)' : 'Att rätta (Alla)'}
+                        {selectedCourseName ? 'Att rätta (kurs)' : 'Att rätta (alla)'}
                     </span>
                     <span className="badge bg-danger rounded-pill">{recentTodos.length}</span>
                 </h6>
@@ -107,7 +107,7 @@ const DashboardSidebar = ({ recentTodos, selectedCourseName, onClearFilter }) =>
                                     <div key={topic.name}>
                                         {/* Topic Header */}
                                         <div className="px-3 py-1 small fw-bold text-muted border-bottom bg-light bg-opacity-25" style={{fontSize: '0.65rem'}}>
-                                            <i className="bi bi-collection me-1"></i>{topic.name.toUpperCase()}
+                                            <i className="bi bi-collection me-1"></i>{topic.name}
                                         </div>
                                         
                                         <div className="p-2 d-flex flex-column gap-2">

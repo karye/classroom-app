@@ -9,7 +9,7 @@ const TodoTable = ({ list, title, colorClass, emptyMsg }) => {
     return (
         <div className="mb-4">
             <div className={`bg-light px-3 py-1 border-bottom d-flex justify-content-between align-items-center ${colorClass}`} style={{fontSize: '0.7rem', fontWeight: 'bold'}}>
-                <span>{title.toUpperCase()} ({list.length})</span>
+                <span>{title} ({list.length})</span>
             </div>
             {list.length > 0 ? (
                 <table className="table table-hover table-sm mb-0 w-100">

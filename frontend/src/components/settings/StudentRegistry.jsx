@@ -179,7 +179,7 @@ const StudentRegistry = ({ courses }) => {
                 <div className="row g-0 border rounded overflow-hidden shadow-sm bg-white animate-fade-in" style={{ minHeight: '400px' }}>
                     {/* Left: Groups */}
                     <div className="col-4 border-end bg-light overflow-auto" style={{ maxHeight: '500px' }}>
-                        <div className="p-2 border-bottom bg-white fw-bold text-muted small text-uppercase">Grupper</div>
+                        <div className="p-2 border-bottom bg-white fw-bold text-muted small">Grupper</div>
                         <div className="list-group list-group-flush">
                             {groupedStudents.map(([className, students]) => (
                                                                                 <button 
@@ -207,7 +207,7 @@ const StudentRegistry = ({ courses }) => {
                     {/* Right: Students */}
                     <div className="col-8 overflow-auto d-flex flex-column" style={{ maxHeight: '500px' }}>
                         <div className="p-2 border-bottom bg-white d-flex justify-content-between align-items-center sticky-top shadow-sm">
-                            <div className="fw-bold text-muted small text-uppercase">
+                            <div className="fw-bold text-muted small">
                                 Elever i {selectedGroup || '...'}
                                 {selectedGroup && <span className="text-muted fw-normal ms-2">({selectedGroupData.length} st)</span>}
                             </div>

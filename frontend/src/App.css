@@ -98,7 +98,6 @@ body {
   height: 3rem; /* Height for 2 lines */
   padding: 2px !important;
   font-weight: 700;
-  text-transform: uppercase;
   font-size: 0.65rem; /* Smaller font */
   letter-spacing: 0.02em;
   box-shadow: 0 1px 0 var(--matrix-border);
@@ -110,7 +109,7 @@ body {
   top: 3rem;
   z-index: 30;
   background-color: #ffffff;
-  height: 4.5rem; /* Height for 4 lines */
+  height: 2.5rem; /* Reduced height */
   width: 90px;
   min-width: 90px;
   max-width: 90px;
@@ -123,9 +122,48 @@ body {
 }
 
 .sticky-header-summary {
-  width: 90px !important; /* Unified width */
+  text-align: center;
+  background-color: #f8f9fa;
+  transition: width 0.2s ease;
+}
+
+/* Expanded Topic Group Styling */
+.topic-header-expanded {
+  border-top: 3px solid var(--primary-color) !important;
+  background-color: #ffffff !important;
+}
+
+.topic-cell-expanded {
+  background-color: rgba(0, 0, 0, 0.015); /* Very subtle tint */
+}
+
+.topic-border-left {
+  border-left: 2px solid #adb5bd !important;
+}
+
+.topic-border-right {
+  border-right: 2px solid #adb5bd !important;
+}
+
+/* Dynamic Widths for Summary Column */
+.summary-column-expanded {
+  width: 60px !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
+}
+
+.summary-column-collapsed {
+  width: 90px !important;
   min-width: 90px !important;
   max-width: 90px !important;
+}
+
+.summary-cell-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Multiline ellipsis utility */
@@ -184,7 +222,7 @@ body {
   background-color: #ffffff;
   border-right: 2px solid var(--matrix-border);
   border-bottom: 1px solid var(--matrix-border);
-  height: 4.5rem;
+  height: 2.5rem;
   text-align: center;
   font-size: 0.7rem;
   color: #6c757d;

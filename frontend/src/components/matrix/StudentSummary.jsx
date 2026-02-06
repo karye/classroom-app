@@ -33,13 +33,13 @@ const StudentSummary = ({ student, courseName, onClose, groupedWork, getSubmissi
                 <div className="student-summary-body">
                     {groupedWork.map(group => (
                         <div key={group.id} className="mb-5">
-                            <h5 className="text-primary border-bottom pb-2 fw-bold mb-3">{group.name.toUpperCase()}</h5>
+                            <h5 className="text-primary border-bottom pb-2 fw-bold mb-3">{group.name}</h5>
                             <table className="table table-sm table-hover border-top">
                                 <thead>
                                     <tr className="table-light">
-                                        <th className="ps-3 py-2 border-0" style={{ width: '60%' }}>UPPGIFT</th>
-                                        <th className="py-2 border-0 text-center" style={{ width: '20%' }}>STATUS</th>
-                                        <th className="py-2 border-0 text-end pe-3" style={{ width: '20%' }}>RESULTAT</th>
+                                        <th className="ps-3 py-2 border-0" style={{ width: '60%' }}>Uppgift</th>
+                                        <th className="py-2 border-0 text-center" style={{ width: '20%' }}>Status</th>
+                                        <th className="py-2 border-0 text-end pe-3" style={{ width: '20%' }}>Resultat</th>
                                     </tr>
                                 </thead>
                                 <tbody>

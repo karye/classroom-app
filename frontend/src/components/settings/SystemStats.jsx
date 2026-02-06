@@ -134,7 +134,7 @@ const SystemStats = ({ courses, onLoading }) => {
                 <div className="col-md-4">
                     <div className="card border-0 shadow-sm bg-primary text-white h-100">
                         <div className="card-body">
-                            <h6 className="text-uppercase opacity-75 small fw-bold mb-2">Lokal Cache (Webbläsare)</h6>
+                            <h6 className="opacity-75 small fw-bold mb-2">Lokal cache (webbläsare)</h6>
                             <h2 className="display-6 fw-bold mb-0">{storageStats ? formatBytes(storageStats.totalBytes) : '-'}</h2>
                             <p className="small opacity-75 mt-2 mb-0">IndexedDB Storage</p>
                         </div>
@@ -143,7 +143,7 @@ const SystemStats = ({ courses, onLoading }) => {
                 <div className="col-md-4">
                     <div className="card border-0 shadow-sm bg-dark text-white h-100">
                         <div className="card-body">
-                            <h6 className="text-uppercase opacity-75 small fw-bold mb-2">Backend Databas</h6>
+                            <h6 className="opacity-75 small fw-bold mb-2">Backend-databas</h6>
                             <h2 className="display-6 fw-bold mb-0">{serverStats ? formatBytes(serverStats.dbSize) : '-'}</h2>
                             <p className="small opacity-75 mt-2 mb-0">SQLite (Master Storage)</p>
                         </div>
@@ -152,7 +152,7 @@ const SystemStats = ({ courses, onLoading }) => {
                 <div className="col-md-4">
                     <div className="card border-0 shadow-sm bg-white h-100">
                         <div className="card-body">
-                            <h6 className="text-uppercase text-muted small fw-bold mb-2">Totalt antal anteckningar</h6>
+                            <h6 className="text-muted small fw-bold mb-2">Totalt antal anteckningar</h6>
                             <h2 className="display-6 fw-bold mb-0 text-primary">{serverStats ? serverStats.totalNotes : '-'}</h2>
                             <p className="small text-muted mt-2 mb-0">Loggboksinlägg sparade</p>
                         </div>

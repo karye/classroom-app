@@ -82,6 +82,11 @@ En konsekvent design används i alla vyer (Matris, Todo, Inställningar) för at
 En gemensam komponent används överallt för att visa status:
 *   🟢 **Inlämnad:** Grön bakgrund/text + bock.
 
+### Språk & Textregler
+Applikationen följer svenska skrivregler för en professionell och enhetlig ton:
+*   **Meningsversal:** Endast första ordet i en mening eller rubrik börjar med versal (om det inte är ett egennamn).
+*   **Efter kolon:** Text efter kolon börjar med gemen (liten bokstav), såvida det inte rör sig om ett egennamn eller en ny mening som kräver stor bokstav.
+
 ### Felhantering & Offline
 Appen är byggd med "Offline-First"-tänk:
 *   **Cache:** All data sparas lokalt (IndexedDB).

@@ -12,7 +12,7 @@ const DayColumn = ({ day, events, selectedCourseName, onEventClick, todoCountsBy
         <div className="border-end d-flex flex-column" style={{ flex: '1 1 0', minWidth: '150px' }}>
             {/* Column Header */}
             <div className={`text-center py-2 border-bottom sticky-top ${isToday ? 'bg-primary text-white' : 'bg-white'}`} style={{ zIndex: 4, height: '50px' }}>
-                <div className="text-uppercase small fw-bold opacity-75 lh-1" style={{ fontSize: '0.7rem' }}>
+                <div className="small fw-bold opacity-75 lh-1" style={{ fontSize: '0.7rem' }}>
                     {format(day, 'EEE', { locale: sv })}
                 </div>
                 <div className="fw-bold fs-5 lh-1">

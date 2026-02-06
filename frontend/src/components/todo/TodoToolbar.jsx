@@ -29,9 +29,9 @@ const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmpty
                                 style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }}
                              >
                                 <option value="all">Alla inlämningar</option>
-                                <option value="cat-prov">Visa: Prov</option>
-                                <option value="cat-uppgifter">Visa: Uppgifter</option>
-                                <option value="cat-none">Visa: Övningar (Ingen kategori)</option>
+                                <option value="cat-prov">Visa: prov</option>
+                                <option value="cat-uppgifter">Visa: uppgifter</option>
+                                <option value="cat-none">Visa: övningar (ingen kategori)</option>
                              </select>
                     </div>
 
@@ -41,9 +41,9 @@ const TodoToolbar = ({ sortType, setSortType, hideEmptyAssignments, setHideEmpty
                     <div className="d-flex align-items-center gap-2">
                             <i className="bi bi-sort-down text-muted"></i>
                             <select className="form-select form-select-sm border-0 fw-bold text-dark bg-transparent ps-0" style={{ width: 'auto', cursor: 'pointer', boxShadow: 'none' }} value={sortType} onChange={(e) => setSortType(e.target.value)}>
-                                <option value="date-desc">Sortera: Nyast först</option>
-                                <option value="date-asc">Sortera: Äldst först</option>
-                                <option value="name-asc">Sortera: Namn (A-Ö)</option>
+                                <option value="date-desc">Sortera: nyast först</option>
+                                <option value="date-asc">Sortera: äldst först</option>
+                                <option value="name-asc">Sortera: namn (a–ö)</option>
                             </select>
                     </div>
 

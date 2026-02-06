@@ -13,7 +13,7 @@ const TodoSidebar = ({
         <div className="d-flex flex-column h-100 border-end bg-white" style={{ width: '280px', minWidth: '280px' }}>
             <div className="sticky-top bg-light border-bottom p-2 d-flex justify-content-between align-items-center">
                 <div className="d-flex align-items-center gap-2">
-                    <span className="text-muted fw-bold" style={{fontSize: '0.7rem'}}>UPPGIFTER ({totalCount})</span>
+                    <span className="text-muted fw-bold" style={{fontSize: '0.7rem'}}>Uppgifter ({totalCount})</span>
                 </div>
             </div>
             
@@ -21,7 +21,7 @@ const TodoSidebar = ({
                 {topicGroups.map(topic => (
                     <div key={topic.id} className="mb-0">
                         <div className="px-2 py-1 small fw-bold text-primary border-bottom border-top mt-0" style={{fontSize: '0.65rem', backgroundColor: '#f8f9fa'}}>
-                            <i className="bi bi-collection me-1"></i>{topic.name.toUpperCase()}
+                            <i className="bi bi-collection me-1"></i>{topic.name}
                         </div>
                         <div className="list-group list-group-flush">
                             {topic.assignments.map(group => {
