@@ -28,7 +28,7 @@ const matchesFilterList = (text, filters) => {
     return filters.some(f => lowText.includes(f.toLowerCase()));
 };
 
-const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
+const ScheduleView = ({ courses, allAnnouncements, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
     const [events, setEvents] = useState([]);
     const [allPendingTodos, setAllPendingTodos] = useState([]); 
     const [selectedCourseName, setSelectedCourseName] = useState(null); 
@@ -260,6 +260,7 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading, excludeFil
                                 <DayColumn 
                                     key={dayIdx}
                                     day={day}
+                                    allAnnouncements={allAnnouncements}
                                     events={getEventsForDay(day)}
                                     selectedCourseName={selectedCourseName}
                                     onEventClick={handleEventClick}

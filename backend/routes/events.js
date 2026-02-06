@@ -105,7 +105,16 @@ router.get('/', async (req, res) => {
 
         // D. Return from DB (Filtered by courseIds if provided)
         let sql = `
-            SELECT ce.*, c.name as courseName 
+            SELECT 
+                ce.*, 
+                c.name as courseName,
+                (SELECT COUNT(*) FROM announcements a 
+                 WHERE a.course_id = ce.course_id 
+                 AND strftime('%Y-%m-%d', COALESCE(a.scheduled_time, a.update_time)) = strftime('%Y-%m-%d', ce.start_time)) as announcementCount,
+                (SELECT COUNT(*) FROM notes n
+                 JOIN announcements a ON n.post_id = a.id
+                 WHERE a.course_id = ce.course_id
+                 AND strftime('%Y-%m-%d', COALESCE(a.scheduled_time, a.update_time)) = strftime('%Y-%m-%d', ce.start_time)) as noteCount
             FROM calendar_events ce
             JOIN courses c ON ce.course_id = c.id
         `;
@@ -126,10 +135,13 @@ router.get('/', async (req, res) => {
             // Format for frontend (mimic Google API structure)
             const formatted = rows.map(r => ({
                 id: r.id,
+                courseId: r.course_id,
                 summary: r.summary,
                 description: r.description,
                 location: r.location,
                 courseName: r.courseName,
+                announcementCount: r.announcementCount,
+                noteCount: r.noteCount,
                 start: { dateTime: r.start_time },
                 end: { dateTime: r.end_time }
             }));

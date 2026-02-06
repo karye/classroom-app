@@ -20,6 +20,7 @@ function App() {
   
   // Unified Course Data (Single Source of Truth)
   const [currentCourseData, setCurrentCourseData] = useState(null);
+  const [allAnnouncements, setAllAnnouncements] = useState({}); // courseId -> announcements[]
   const [courseDataLoading, setCourseDataLoading] = useState(false);
 
   // New Sync Status State
@@ -53,6 +54,9 @@ function App() {
               const cached = await dbGet(cacheKey);
               if (cached) {
                   setCurrentCourseData(cached.data);
+                  if (cached.data.announcements) {
+                      setAllAnnouncements(prev => ({ ...prev, [courseId]: cached.data.announcements }));
+                  }
                   const timeStr = new Date(cached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                   setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
                   setCourseDataLoading(false);
@@ -68,6 +72,9 @@ function App() {
           const now = Date.now();
 
           setCurrentCourseData(data);
+          if (data.announcements) {
+              setAllAnnouncements(prev => ({ ...prev, [courseId]: data.announcements }));
+          }
           
           const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
@@ -353,6 +360,7 @@ function App() {
                 ) : currentView === 'schedule' ? (
                     <ScheduleView 
                         courses={visibleCoursesList}
+                        allAnnouncements={allAnnouncements}
                         refreshTrigger={refreshTriggers.schedule || 0}
                         onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} 
                         onLoading={handleLoadingChange}
