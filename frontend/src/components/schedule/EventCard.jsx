@@ -16,14 +16,26 @@ const EventCard = ({ positionedEvent, selectedCourseName, onClick, todoCountsByC
     const getCourseColor = (name) => {
         if (!name) return { bg: '#e8f0fe', text: '#1967d2', border: '#1967d2' }; // Default Blue
         const colors = [
-            { bg: '#fce8e6', text: '#c5221f', border: '#c5221f' }, // Red
-            { bg: '#fef7e0', text: '#ea8600', border: '#ea8600' }, // Yellow
-            { bg: '#e6f4ea', text: '#137333', border: '#137333' }, // Green
-            { bg: '#e8f0fe', text: '#1967d2', border: '#1967d2' }, // Blue
-            { bg: '#f3e8fd', text: '#8e24aa', border: '#8e24aa' }, // Purple
-            { bg: '#e0f2f1', text: '#00695c', border: '#00695c' }, // Teal
-            { bg: '#fff8e1', text: '#f9a825', border: '#f9a825' }, // Amber
-            { bg: '#eceff1', text: '#546e7a', border: '#546e7a' }  // Blue Grey
+            { bg: '#fce8e6', text: '#c5221f', border: '#c5221f' }, // Red 50
+            { bg: '#e6f4ea', text: '#137333', border: '#137333' }, // Green 50
+            { bg: '#e8f0fe', text: '#1967d2', border: '#1967d2' }, // Blue 50
+            { bg: '#fef7e0', text: '#ea8600', border: '#ea8600' }, // Yellow 50
+            { bg: '#f3e8fd', text: '#8e24aa', border: '#8e24aa' }, // Purple 50
+            { bg: '#e0f2f1', text: '#00695c', border: '#00695c' }, // Teal 50
+            { bg: '#fff0e1', text: '#e65100', border: '#e65100' }, // Orange 50
+            { bg: '#fce4ec', text: '#c2185b', border: '#c2185b' }, // Pink 50
+            { bg: '#f3e5f5', text: '#7b1fa2', border: '#7b1fa2' }, // Deep Purple 50
+            { bg: '#e8eaf6', text: '#303f9f', border: '#303f9f' }, // Indigo 50
+            { bg: '#e1f5fe', text: '#0288d1', border: '#0288d1' }, // Light Blue 50
+            { bg: '#e0f7fa', text: '#0097a7', border: '#0097a7' }, // Cyan 50
+            { bg: '#f1f8e9', text: '#689f38', border: '#689f38' }, // Light Green 50
+            { bg: '#f9fbe7', text: '#afb42b', border: '#afb42b' }, // Lime 50
+            { bg: '#fff9c4', text: '#fbc02d', border: '#fbc02d' }, // Yellow 100
+            { bg: '#ffe0b2', text: '#f57c00', border: '#f57c00' }, // Orange 100
+            { bg: '#ffccbc', text: '#e64a19', border: '#e64a19' }, // Deep Orange 50
+            { bg: '#efebe9', text: '#5d4037', border: '#5d4037' }, // Brown 50
+            { bg: '#fafafa', text: '#616161', border: '#616161' }, // Grey 50
+            { bg: '#eceff1', text: '#455a64', border: '#455a64' }  // Blue Grey 50
         ];
         let hash = 0;
         for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);

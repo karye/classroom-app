@@ -162,17 +162,17 @@ const SystemStats = ({ courses, onLoading }) => {
 
             <div className="card border-0 shadow-sm">
                 <div className="card-header bg-white py-3">
-                    <h5 className="fw-bold mb-0">Status per Kurs</h5>
+                    <h5 className="fw-bold mb-0">Status per kurs</h5>
                 </div>
                 <div className="table-responsive">
                     <table className="table table-hover align-middle mb-0">
                         <thead className="bg-light">
                             <tr>
                                 <th className="ps-4">Kursnamn</th>
-                                <th>Senast Synkad</th>
-                                <th>Data (Cache)</th>
+                                <th>Senast synkad</th>
+                                <th>Data (cache)</th>
                                 <th>Innehåll</th>
-                                <th>Loggbok (Server)</th>
+                                <th>Loggbok (server)</th>
                                 <th className="text-end pe-4">Åtgärd</th>
                             </tr>
                         </thead>

@@ -66,8 +66,8 @@ const MatrixToolbar = ({
                 </div>
 
                 {/* Export */}
-                <button onClick={onExport} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
-                    <i className="bi bi-file-earmark-spreadsheet fs-6"></i> Exportera excel
+                <button onClick={onExport} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold" title="Exportera betyg och status till Excel (CSV)">
+                    <i className="bi bi-file-earmark-spreadsheet fs-6"></i> Exportera
                 </button>
             </div>
         </div>

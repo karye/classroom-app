@@ -22,7 +22,9 @@ const PostCard = ({
 }) => {
     const hasNotes = !!notes[post.id];
     const hasMaterials = post.materials && post.materials.length > 0;
-    const postDate = parseISO(post.updateTime);
+    const isScheduled = post.state === 'DRAFT' && post.scheduledTime;
+    const displayDate = isScheduled ? parseISO(post.scheduledTime) : parseISO(post.updateTime);
+    const postDate = parseISO(post.updateTime); // Keep for month headers etc if needed
 
     return (
         <React.Fragment>
@@ -33,18 +35,20 @@ const PostCard = ({
                     <div className="flex-grow-1 border-bottom"></div>
                 </div>
             )}
-            <div className="card mb-3 shadow-sm border-0">
+            <div className={`card mb-3 shadow-sm border-0 ${isScheduled ? 'border-start border-warning border-4' : ''}`}>
                 <div className={`card-header bg-white border-bottom-0 pt-3 px-4 d-flex justify-content-between align-items-start ${!isExpanded ? 'pb-2' : ''}`} style={{cursor: 'pointer'}} onClick={() => togglePost(post.id)} title={isExpanded ? "Klicka för att minimera" : "Klicka för att läsa mer"}>
                     <div className="d-flex align-items-center gap-2 flex-grow-1 overflow-hidden">
                         <div className={`bg-light text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${!isExpanded ? 'border' : ''}`} style={{width: '32px', height: '32px'}}>
                             <i className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}></i>
                         </div>
                         <div className="flex-grow-1 overflow-hidden">
-                            <div className="d-flex align-items-center gap-2">
-                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" title="Vecka">v.{getISOWeek(postDate)}</span>
-                                <small className="text-muted fw-bold" style={{fontSize: '0.75rem'}} title={format(postDate, "yyyy-MM-dd HH:mm")}>
-                                    {format(postDate, "d MMM yyyy HH:mm", { locale: sv })}
+                            <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25" title="Vecka">v.{getISOWeek(displayDate)}</span>
+                                <small className={`${isScheduled ? 'text-warning' : 'text-muted'} fw-bold`} style={{fontSize: '0.75rem'}} title={format(displayDate, "yyyy-MM-dd HH:mm")}>
+                                    {isScheduled ? <i className="bi bi-clock me-1"></i> : null}
+                                    {format(displayDate, "d MMM yyyy HH:mm", { locale: sv })}
                                 </small>
+                                {isScheduled && <span className="badge bg-warning text-dark border-0 small">Schemalagd</span>}
                                 {hasNotes && <i className="bi bi-journal-check text-warning" title="Har anteckning"></i>}
                                 {hasMaterials && <i className="bi bi-paperclip text-secondary opacity-50" title="Har bifogat material"></i>}
                             </div>

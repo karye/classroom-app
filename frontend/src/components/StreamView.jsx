@@ -201,8 +201,8 @@ const StreamView = ({
                              <input type="text" className="form-control border-start-0 ps-0" placeholder="Filtrera inlägg..." value={filterText} onChange={(e) => setFilterText(e.target.value)} />
                         </div>
                      </div>
-                    <button onClick={handleGenerateLogbook} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold">
-                        <i className="bi bi-file-text fs-6"></i> Exportera Loggbok
+                    <button onClick={handleGenerateLogbook} className="btn btn-outline-success btn-sm d-flex align-items-center gap-2 border-0 fw-bold" title="Exportera loggbok och anteckningar till Markdown (.md)">
+                        <i className="bi bi-file-text fs-6"></i> Exportera
                     </button>
                 </div>
             </div>

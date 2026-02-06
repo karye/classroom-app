@@ -232,7 +232,7 @@ const ScheduleView = ({ courses, refreshTrigger, onUpdate, onLoading, excludeFil
                     <h5 className="mb-0 fw-bold text-primary">
                         <i className="bi bi-calendar3 me-2"></i>
                         v.{getISOWeek(viewDate)} 
-                        <span className="text-muted ms-2 fw-normal" style={{ fontSize: '0.9rem' }}>
+                        <span className="text-muted ms-2 fw-normal text-capitalize" style={{ fontSize: '0.9rem' }}>
                             {format(weekStart, 'd MMM', { locale: sv })} - {format(weekEnd, 'd MMM yyyy', { locale: sv })}
                         </span>
                     </h5>

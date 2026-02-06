@@ -87,6 +87,8 @@ function initDb() {
                 max_points INTEGER,
                 due_date DATETIME,
                 alternate_link TEXT,
+                state TEXT DEFAULT 'PUBLISHED',
+                scheduled_time DATETIME,
                 FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
                 FOREIGN KEY (topic_id) REFERENCES topics (id) ON DELETE SET NULL,
                 FOREIGN KEY (grade_category_id) REFERENCES grade_categories (id) ON DELETE SET NULL
@@ -125,6 +127,8 @@ function initDb() {
                 update_time DATETIME,
                 alternate_link TEXT,
                 materials TEXT,
+                state TEXT DEFAULT 'PUBLISHED',
+                scheduled_time DATETIME,
                 FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
             )`);
 
@@ -166,6 +170,30 @@ function initDb() {
             db.run("ALTER TABLE coursework ADD COLUMN grade_category_id TEXT", (err) => {
                 if (err && !err.message.includes("duplicate column name")) {
                     console.error("Migration error (grade_category_id):", err.message);
+                }
+            });
+
+            db.run("ALTER TABLE coursework ADD COLUMN state TEXT DEFAULT 'PUBLISHED'", (err) => {
+                if (err && !err.message.includes("duplicate column name")) {
+                    console.error("Migration error (coursework state):", err.message);
+                }
+            });
+
+            db.run("ALTER TABLE coursework ADD COLUMN scheduled_time DATETIME", (err) => {
+                if (err && !err.message.includes("duplicate column name")) {
+                    console.error("Migration error (coursework scheduled_time):", err.message);
+                }
+            });
+
+            db.run("ALTER TABLE announcements ADD COLUMN state TEXT DEFAULT 'PUBLISHED'", (err) => {
+                if (err && !err.message.includes("duplicate column name")) {
+                    console.error("Migration error (announcements state):", err.message);
+                }
+            });
+
+            db.run("ALTER TABLE announcements ADD COLUMN scheduled_time DATETIME", (err) => {
+                if (err && !err.message.includes("duplicate column name")) {
+                    console.error("Migration error (announcements scheduled_time):", err.message);
                 }
             });
 

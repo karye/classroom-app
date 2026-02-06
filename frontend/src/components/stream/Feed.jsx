@@ -32,8 +32,10 @@ const Feed = ({
                         </div>
                 ) : (
                     filteredAnnouncements.map((post) => {
-                        const postDate = parseISO(post.updateTime);
-                        const currentMonth = format(postDate, "MMMM yyyy", { locale: sv });
+                        const isScheduled = post.state === 'DRAFT' && post.scheduledTime;
+                        const postDate = isScheduled ? parseISO(post.scheduledTime) : parseISO(post.updateTime);
+                        const monthName = format(postDate, "MMMM yyyy", { locale: sv });
+                        const currentMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
                         const showMonthHeader = currentMonth !== lastMonth;
                         lastMonth = currentMonth;
 

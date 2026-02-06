@@ -6,6 +6,12 @@ import 'react-day-picker/dist/style.css';
 const CalendarSidebar = ({ selectedDate, setSelectedDate, daysWithPosts }) => {
     return (
         <div className="col-md-3 col-lg-3 border-end bg-light p-3 h-100 d-none d-md-block overflow-auto" style={{ minWidth: '380px', width: '380px' }}>
+            <style>
+                {`
+                    .rdp-month_caption { text-transform: capitalize; }
+                    .rdp-weekday { text-transform: capitalize; }
+                `}
+            </style>
             <div className="bg-white rounded shadow-sm p-2 mb-3 d-flex justify-content-center" style={{ fontSize: '0.8rem' }}>
                 <div style={{ maxWidth: '100%' }}>
                     <DayPicker

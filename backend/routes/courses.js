@@ -62,9 +62,9 @@ router.get('/:courseId/details', async (req, res) => {
             // A. Fetch everything using pagination helper + the Course object for settings
             const [googleStudents, googleWork, googleTopics, googleAnnouncements, courseRes] = await Promise.all([
                 fetchAllPages(classroom.courses.students, 'list', { courseId, pageSize: 100 }),
-                fetchAllPages(classroom.courses.courseWork, 'list', { courseId, pageSize: 100 }),
+                fetchAllPages(classroom.courses.courseWork, 'list', { courseId, pageSize: 100, courseWorkStates: ['PUBLISHED', 'DRAFT'] }),
                 fetchAllPages(classroom.courses.topics, 'list', { courseId, pageSize: 100 }).catch(() => []),
-                fetchAllPages(classroom.courses.announcements, 'list', { courseId, pageSize: 100 }).catch(() => []),
+                fetchAllPages(classroom.courses.announcements, 'list', { courseId, pageSize: 100, announcementStates: ['PUBLISHED', 'DRAFT'] }).catch(() => []),
                 classroom.courses.get({ id: courseId }).catch(() => ({ data: {} }))
             ]);
 
@@ -106,7 +106,7 @@ router.get('/:courseId/details', async (req, res) => {
 
                     // 3. CourseWork
                     db.run("DELETE FROM coursework WHERE course_id = ?", [courseId]);
-                    const cwStmt = db.prepare(`INSERT INTO coursework (id, course_id, topic_id, grade_category_id, title, type, max_points, due_date, alternate_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                    const cwStmt = db.prepare(`INSERT INTO coursework (id, course_id, topic_id, grade_category_id, title, type, max_points, due_date, alternate_link, state, scheduled_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
                     
                     if (googleWork.length > 0) {
                         console.log(`[DEBUG] Full dump of first assignment "${googleWork[0].title}":`, JSON.stringify(googleWork[0], null, 2));
@@ -115,7 +115,7 @@ router.get('/:courseId/details', async (req, res) => {
                     googleWork.forEach(cw => {
                         const dueDate = cw.dueDate ? `${cw.dueDate.year}-${String(cw.dueDate.month).padStart(2,'0')}-${String(cw.dueDate.day).padStart(2,'0')}` : null;
                         const catId = cw.gradeCategory?.id || cw.gradeCategoryId || null;
-                        cwStmt.run(cw.id, courseId, cw.topicId || null, catId, cw.title, cw.workType || 'ASSIGNMENT', cw.maxPoints ?? null, dueDate, cw.alternateLink);
+                        cwStmt.run(cw.id, courseId, cw.topicId || null, catId, cw.title, cw.workType || 'ASSIGNMENT', cw.maxPoints ?? null, dueDate, cw.alternateLink, cw.state, cw.scheduledTime || null);
                     });
                     cwStmt.finalize();
 
@@ -129,9 +129,9 @@ router.get('/:courseId/details', async (req, res) => {
 
                     // 5. Announcements (Stream)
                     db.run("DELETE FROM announcements WHERE course_id = ?", [courseId]);
-                    const annStmt = db.prepare(`INSERT INTO announcements (id, course_id, text, update_time, alternate_link, materials) VALUES (?, ?, ?, ?, ?, ?)`);
+                    const annStmt = db.prepare(`INSERT INTO announcements (id, course_id, text, update_time, alternate_link, materials, state, scheduled_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
                     googleAnnouncements.forEach(ann => {
-                        annStmt.run(ann.id, courseId, ann.text || '', ann.updateTime, ann.alternateLink, JSON.stringify(ann.materials || []));
+                        annStmt.run(ann.id, courseId, ann.text || '', ann.updateTime, ann.alternateLink, JSON.stringify(ann.materials || []), ann.state, ann.scheduledTime || null);
                     });
                     annStmt.finalize();
 
@@ -157,15 +157,17 @@ router.get('/:courseId/details', async (req, res) => {
             result.students = (rows || []).map(r => ({ userId: r.userId, studentClass: r.studentClass, profile: { name: { fullName: r.full_name }, emailAddress: r.email, photoUrl: r.photo_url }}));
             res();
         }));
-        const p4 = new Promise(res => db.all("SELECT id, topic_id as topicId, grade_category_id as gradeCategoryId, title, type, max_points as maxPoints, due_date as dueDate, alternate_link as alternateLink FROM coursework WHERE course_id = ?", [courseId], (err, rows) => { result.coursework = rows || []; res(); }));
+        const p4 = new Promise(res => db.all("SELECT id, topic_id as topicId, grade_category_id as gradeCategoryId, title, type, max_points as maxPoints, due_date as dueDate, alternate_link as alternateLink, state, scheduled_time as scheduledTime FROM coursework WHERE course_id = ?", [courseId], (err, rows) => { result.coursework = rows || []; res(); }));
         const p5 = new Promise(res => db.all("SELECT ss.id, ss.coursework_id as courseWorkId, ss.student_id as userId, ss.state, ss.assigned_grade as assignedGrade, ss.late, ss.update_time as updateTime FROM student_submissions ss JOIN coursework cw ON ss.coursework_id = cw.id WHERE cw.course_id = ?", [courseId], (err, rows) => { result.submissions = rows || []; res(); }));
-        const p6 = new Promise(res => db.all("SELECT * FROM announcements WHERE course_id = ? ORDER BY update_time DESC", [courseId], (err, rows) => {
+        const p6 = new Promise(res => db.all("SELECT *, COALESCE(scheduled_time, update_time) as effective_date FROM announcements WHERE course_id = ? ORDER BY effective_date DESC", [courseId], (err, rows) => {
             result.announcements = (rows || []).map(r => ({
                 id: r.id,
                 text: r.text,
                 updateTime: r.update_time,
                 alternateLink: r.alternate_link,
-                materials: JSON.parse(r.materials || '[]')
+                materials: JSON.parse(r.materials || '[]'),
+                state: r.state,
+                scheduledTime: r.scheduled_time
             }));
             res();
         }));
@@ -184,7 +186,7 @@ router.get('/:courseId/details', async (req, res) => {
  */
 router.get('/:courseId/announcements', async (req, res) => {
     const { courseId } = req.params;
-    db.all("SELECT * FROM announcements WHERE course_id = ? ORDER BY update_time DESC", [courseId], (err, rows) => {
+    db.all("SELECT *, COALESCE(scheduled_time, update_time) as effective_date FROM announcements WHERE course_id = ? ORDER BY effective_date DESC", [courseId], (err, rows) => {
         if (err) return res.status(500).json({ error: 'Database error' });
         
         // Parse materials back to JSON
@@ -193,7 +195,9 @@ router.get('/:courseId/announcements', async (req, res) => {
             text: r.text,
             updateTime: r.update_time,
             alternateLink: r.alternate_link,
-            materials: JSON.parse(r.materials || '[]')
+            materials: JSON.parse(r.materials || '[]'),
+            state: r.state,
+            scheduledTime: r.scheduled_time
         }));
         res.json(formatted);
     });
