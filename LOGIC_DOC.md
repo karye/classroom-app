@@ -11,6 +11,7 @@ Applikationen använder en centraliserad modell där `App.jsx` äger allt tillst
 ### A. Den Centrala Sanningen (`App.jsx`)
 Huvudkomponenten håller följande data i sitt state:
 *   `allAnnouncements`: Inlägg från Classroom för alla synkroniserade kurser.
+*   `allCoursework`: Uppgifter (metadata och deadlines) för alla kurser.
 *   `allEvents`: Kalenderhändelser för alla synliga kurser.
 *   `allNotes`: Alla användarens loggboksanteckningar.
 *   `currentCourseData`: Detaljerad data för den för tillfället valda kursen (elever, uppgifter, submissions).
@@ -57,4 +58,5 @@ Systemet analyserar ämnesgrupper i matrisen för att välja bäst summeringsmet
 Använder SQLite för persistent lagring. Tabellerna `coursework` och `announcements` har utökats med `state` och `scheduled_time` för att stödja schemalagda inlägg.
 
 ### B. Datumjämförelse
-Backend använder `strftime('%Y-%m-%d', ...)` för att garantera att datummatchningar fungerar oberoende av tidszoner eller precision i tidsstämplar.
+Backend använder `strftime('%Y-%m-%d', ...)` för att garantera att datummatchningar fungerar oberoende av tidszoner.
+*   **Deadlines:** Lagras som strängar (`YYYY-MM-DD`) i databasen (från Google API:s `dueDate`-objekt). Frontend måste hantera både råa datumobjekt (direkt från API) och datumsträngar (från DB/Cache) vid matchning i kalendern.

@@ -33,14 +33,18 @@ När data saknas visas en central ikon med knappen "Hämta nu".
 
 ### A. Schema (Schedule View)
 En vertikal veckokalender för planering med integrerad dashboard.
-*   **Kalender:** Visar lektioner 08:00 - 18:00 (Mån-Fre).
-*   **Interaktiva Kort:** Lektionskorten visar nu Gruppnamn (t.ex. TE23A) som huvudrubrik. 
-    *   **Ikoner:** Visar om det finns flödesinlägg (blå bubbla) eller loggboksanteckningar (gul bok) för lektionens datum.
-    *   **Markering:** Den valda lektionen markeras med en tjock svart kant och lyfts fram visuellt.
+*   **Fokus:** Dagar som passerat (historik) tonas ut med 70% opacitet för att visuellt lyfta fram innevarande dag och framtiden.
+*   **Interaktiva Kort:** Lektionskorten visar Gruppnamn och statusikoner.
+    *   **Ikoner:** 
+        *   📘 Bok (Blå): Inlägg/Material i flödet.
+        *   📒 Bok (Gul): Privata loggboksanteckningar.
+        *   📅 Kalender (Röd): Uppgifter med deadline detta datum.
+    *   **Markering:** Den valda lektionen markeras tydligt och expanderar något.
 *   **Lektionsdetaljer (Sidopanel):**
-    *   **Sidhuvud:** Visar valt klassrum i ett färgat piller samt exakt dag och tid för lektionen.
-    *   **Att rätta i kursen:** Grupperar inlämningar efter ämne (Topic) för den aktuella kursen.
-    *   **Anteckningar:** Visar Classroom-inlägg och privata loggboksanteckningar kopplade till lektionen.
+    *   **Sektioner:** Innehållet är uppdelat i tre kollapsbara sektioner:
+        1.  **Att rätta:** Visar inlämningar som väntar på bedömning (Inbix Zero).
+        2.  **Anteckningar:** Visar Classroom-inlägg (med klickbara material-piller för dokument/länkar) och privata anteckningar.
+        3.  **Uppgifter (deadline idag):** Listar alla uppgifter som ska vara inlämnade detta datum, med direktlänk till Classroom.
 
 ### B. Matrisen (Matrix View)
 En heatmap över elevresultat. 

@@ -1,18 +1,28 @@
 import React from 'react';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, isBefore, startOfDay } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import { layoutEventsForDay, CONSTANTS } from '../../utils/calendarLayout';
 import EventCard from './EventCard';
 
-const DayColumn = ({ day, allAnnouncements, allNotes, events, selectedEvent, onEventClick, todoCountsByCourse }) => {
-    const isToday = isSameDay(day, new Date());
+const DayColumn = ({ day, allAnnouncements, allCoursework = {}, allNotes, events, selectedEvent, onEventClick, todoCountsByCourse }) => {
+    const now = new Date();
+    const isToday = isSameDay(day, now);
+    const isPast = isBefore(startOfDay(day), startOfDay(now));
     const positionedEvents = layoutEventsForDay(events);
 
     return (
-        <div className="border-end d-flex flex-column" style={{ flex: '1 1 0', minWidth: '150px' }}>
+        <div 
+            className="border-end d-flex flex-column transition-opacity" 
+            style={{ 
+                flex: '1 1 0', 
+                minWidth: '150px',
+                opacity: isPast ? 0.7 : 1,
+                backgroundColor: isPast ? '#fcfcfc' : 'transparent'
+            }}
+        >
             {/* Column Header */}
             <div className={`text-center py-2 border-bottom sticky-top ${isToday ? 'bg-primary text-white' : 'bg-white'}`} style={{ zIndex: 4, height: '50px' }}>
-                <div className="small fw-bold opacity-75 lh-1 text-capitalize" style={{ fontSize: '0.7rem' }}>
+                <div className={`small fw-bold opacity-75 lh-1 text-capitalize ${isPast ? 'text-muted' : ''}`} style={{ fontSize: '0.7rem' }}>
                     {format(day, 'EEE', { locale: sv })}
                 </div>
                 <div className="fw-bold fs-5 lh-1">
@@ -33,6 +43,7 @@ const DayColumn = ({ day, allAnnouncements, allNotes, events, selectedEvent, onE
                         key={item.event.id}
                         positionedEvent={item}
                         allAnnouncements={allAnnouncements}
+                        allCoursework={allCoursework}
                         allNotes={allNotes}
                         selectedEvent={selectedEvent}
                         onClick={onEventClick}
@@ -42,7 +53,6 @@ const DayColumn = ({ day, allAnnouncements, allNotes, events, selectedEvent, onE
 
                 {/* Current Time Indicator */}
                 {isToday && (() => {
-                    const now = new Date();
                     const currentHour = now.getHours() + now.getMinutes() / 60;
                     if (currentHour >= CONSTANTS.START_HOUR && currentHour <= CONSTANTS.END_HOUR) {
                         const top = (currentHour - CONSTANTS.START_HOUR) * CONSTANTS.HOUR_HEIGHT;

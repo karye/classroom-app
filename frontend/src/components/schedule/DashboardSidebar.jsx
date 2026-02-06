@@ -3,9 +3,18 @@ import { formatDistanceToNow, parseISO, isSameDay, format } from 'date-fns';
 import { sv } from 'date-fns/locale';
 import ReactMarkdown from 'react-markdown';
 
-const DashboardSidebar = ({ recentTodos, selectedEvent, allAnnouncements, allNotes, onClearFilter }) => {
+const DashboardSidebar = ({ recentTodos, selectedEvent, allAnnouncements, allCoursework = {}, allNotes, onClearFilter }) => {
     const [collapsedCourses, setCollapsedCourses] = useState(new Set());
+    const [sectionsCollapsed, setSectionsCollapsed] = useState({
+        todos: false,
+        notes: false,
+        deadlines: false
+    });
     const selectedCourseName = selectedEvent?.courseName || null;
+
+    const toggleSection = (section) => {
+        setSectionsCollapsed(prev => ({ ...prev, [section]: !prev[section] }));
+    };
 
     // Helper to extract metadata (matching EventCard)
     const getEventMetadata = (description) => {
@@ -68,6 +77,26 @@ const DashboardSidebar = ({ recentTodos, selectedEvent, allAnnouncements, allNot
             privateNote: allNotes[ann.id]
         }));
     }, [selectedEvent, allAnnouncements, allNotes]);
+
+    // Deadlines Matching
+    const deadlines = useMemo(() => {
+        if (!selectedEvent) return [];
+        const eventDate = parseISO(selectedEvent.start.dateTime || selectedEvent.start.date);
+        const courseWork = allCoursework[selectedEvent.courseId] || [];
+        
+        return courseWork.filter(work => {
+            if (!work.dueDate) return false;
+            
+            let due;
+            if (typeof work.dueDate === 'string') {
+                due = parseISO(work.dueDate);
+            } else {
+                // Fallback if it's still the Google API object format
+                due = new Date(work.dueDate.year, work.dueDate.month - 1, work.dueDate.day);
+            }
+            return isSameDay(due, eventDate);
+        });
+    }, [selectedEvent, allCoursework]);
 
     const toggleCourse = (courseName) => {
         const newCollapsed = new Set(collapsedCourses);
@@ -154,123 +183,206 @@ const DashboardSidebar = ({ recentTodos, selectedEvent, allAnnouncements, allNot
             <div className="p-0 flex-grow-1 overflow-auto bg-light">
                 
                 {/* ATT RÄTTA SECTION */}
-                <div className="px-3 py-2 fw-bold text-secondary border-bottom bg-white bg-opacity-50" style={{fontSize: '0.7rem', letterSpacing: '0.02rem'}}>
-                    <i className="bi bi-check2-square me-2 text-danger"></i>
-                    {selectedEvent ? 'Att rätta i kursen' : 'Allt att rätta'}
+                <div 
+                    className="px-3 py-2 fw-bold text-secondary border-bottom bg-white bg-opacity-50 d-flex justify-content-between align-items-center cursor-pointer" 
+                    style={{fontSize: '0.7rem', letterSpacing: '0.02rem', cursor: 'pointer'}}
+                    onClick={() => toggleSection('todos')}
+                >
+                    <span>
+                        <i className="bi bi-check2-square me-2 text-danger"></i>
+                        {selectedEvent ? 'Att rätta i kursen' : 'Allt att rätta'}
+                    </span>
+                    <i className={`bi bi-chevron-${sectionsCollapsed.todos ? 'right' : 'down'} opacity-50`}></i>
                 </div>
 
-                {recentTodos.length > 0 ? (
-                    groupedData.map(course => {
-                        const isCollapsed = collapsedCourses.has(course.name);
-                        const theme = getCourseColor(course.name);
+                {!sectionsCollapsed.todos && (
+                    recentTodos.length > 0 ? (
+                        groupedData.map(course => {
+                            const isCollapsed = collapsedCourses.has(course.name);
+                            const theme = getCourseColor(course.name);
 
-                        return (
-                            <div key={course.name} className="border-bottom">
-                                {/* Course Header */}
-                                <div 
-                                    className="px-3 py-2 d-flex justify-content-between align-items-center cursor-pointer bg-white bg-opacity-25" 
-                                    style={{fontSize: '0.75rem', cursor: 'pointer', borderLeft: `4px solid ${theme.border}`}}
-                                    onClick={() => toggleCourse(course.name)}
-                                >
-                                    <div className="d-flex align-items-center text-truncate">
-                                        <i className={`bi bi-chevron-${isCollapsed ? 'right' : 'down'} me-2 opacity-50`}></i>
-                                        <span className="fw-bold text-dark">{course.name}</span>
-                                    </div>
-                                    <span className="badge rounded-pill" style={{backgroundColor: theme.bg, color: theme.text, fontSize: '0.65rem'}}>
-                                        {course.totalSubmissions} st
-                                    </span>
-                                </div>
-
-                                {!isCollapsed && course.topics.map(topic => (
-                                    <div key={topic.name} className="ps-3">
-                                        {/* Topic Header */}
-                                        <div className="px-3 py-1 small fw-bold text-muted border-bottom" style={{fontSize: '0.65rem', backgroundColor: 'rgba(0,0,0,0.02)'}}>
-                                            {topic.name}
+                            return (
+                                <div key={course.name} className="border-bottom">
+                                    {/* Course Header */}
+                                    <div 
+                                        className="px-3 py-2 d-flex justify-content-between align-items-center cursor-pointer bg-white bg-opacity-25" 
+                                        style={{fontSize: '0.75rem', cursor: 'pointer', borderLeft: `4px solid ${theme.border}`}}
+                                        onClick={() => toggleCourse(course.name)}
+                                    >
+                                        <div className="d-flex align-items-center text-truncate">
+                                            <i className={`bi bi-chevron-${isCollapsed ? 'right' : 'down'} me-2 opacity-50`}></i>
+                                            <span className="fw-bold text-dark">{course.name}</span>
                                         </div>
-                                        
-                                        <div className="p-2 d-flex flex-column gap-2">
-                                            {topic.assignments.map(assign => (
-                                                <div key={assign.id} className="card border-0 shadow-sm p-2 bg-white ms-2">
-                                                    <div className="d-flex justify-content-between align-items-start mb-1">
-                                                        <div className="fw-normal text-dark small text-truncate pe-2" title={assign.title} style={{ lineHeight: '1.2' }}>
-                                                            {assign.title}
+                                        <span className="badge rounded-pill" style={{backgroundColor: theme.bg, color: theme.text, fontSize: '0.65rem'}}>
+                                            {course.totalSubmissions} st
+                                        </span>
+                                    </div>
+
+                                    {!isCollapsed && course.topics.map(topic => (
+                                        <div key={topic.name} className="ps-3">
+                                            {/* Topic Header */}
+                                            <div className="px-3 py-1 small fw-bold text-muted border-bottom" style={{fontSize: '0.65rem', backgroundColor: 'rgba(0,0,0,0.02)'}}>
+                                                {topic.name}
+                                            </div>
+                                            
+                                            <div className="p-2 d-flex flex-column gap-2">
+                                                {topic.assignments.map(assign => (
+                                                    <div key={assign.id} className="card border-0 shadow-sm p-2 bg-white ms-2">
+                                                        <div className="d-flex justify-content-between align-items-start mb-1">
+                                                            <div className="fw-normal text-dark small text-truncate pe-2" title={assign.title} style={{ lineHeight: '1.2' }}>
+                                                                {assign.title}
+                                                            </div>
+                                                            <span className="badge bg-light text-dark border rounded-pill flex-shrink-0" style={{fontSize: '0.6rem'}}>
+                                                                {assign.submissions.length}
+                                                            </span>
                                                         </div>
-                                                        <span className="badge bg-light text-dark border rounded-pill flex-shrink-0" style={{fontSize: '0.6rem'}}>
-                                                            {assign.submissions.length}
-                                                        </span>
+                                                        
+                                                        {/* Student Chips */}
+                                                        <div className="d-flex flex-wrap gap-1 mt-1">
+                                                            {assign.submissions.map((sub, sIdx) => {
+                                                                const nameParts = (sub.studentName || 'Elev').trim().split(/\s+/);
+                                                                const displayName = nameParts.length > 1 
+                                                                    ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}` 
+                                                                    : nameParts[0];
+                                                                
+                                                                return (
+                                                                    <div key={`${sub.studentId}-${assign.id}-${sIdx}`} 
+                                                                        className={`d-flex align-items-center rounded-pill px-2 py-0 border ${sub.late ? 'bg-danger-subtle border-danger text-danger' : 'bg-white border-light-subtle text-muted'}`} 
+                                                                        style={{fontSize: '0.65rem', height: '18px'}}
+                                                                        title={`${sub.studentName}${sub.late ? ' (SEN)' : ''}`}>
+                                                                        <span className="text-truncate" style={{maxWidth: '85px'}}>{displayName}</span>
+                                                                        {!!sub.late && <i className="bi bi-clock-fill ms-1" style={{fontSize: '0.55rem'}}></i>}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
-                                                    
-                                                    {/* Student Chips */}
-                                                    <div className="d-flex flex-wrap gap-1 mt-1">
-                                                        {assign.submissions.map((sub, sIdx) => {
-                                                            const nameParts = (sub.studentName || 'Elev').trim().split(/\s+/);
-                                                            const displayName = nameParts.length > 1 
-                                                                ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}` 
-                                                                : nameParts[0];
-                                                            
-                                                            return (
-                                                                <div key={`${sub.studentId}-${assign.id}-${sIdx}`} 
-                                                                     className={`d-flex align-items-center rounded-pill px-2 py-0 border ${sub.late ? 'bg-danger-subtle border-danger text-danger' : 'bg-white border-light-subtle text-muted'}`} 
-                                                                     style={{fontSize: '0.65rem', height: '18px'}}
-                                                                     title={`${sub.studentName}${sub.late ? ' (SEN)' : ''}`}>
-                                                                    <span className="text-truncate" style={{maxWidth: '85px'}}>{displayName}</span>
-                                                                    {!!sub.late && <i className="bi bi-clock-fill ms-1" style={{fontSize: '0.55rem'}}></i>}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        );
-                    })
-                ) : (
-                    <div className="py-5 text-center text-muted small">
-                        <i className="bi bi-check2-all fs-2 opacity-25 d-block mb-3 text-success"></i>
-                        <div className="fw-bold text-dark mb-1">Allt är klart!</div>
-                        Inga inlämningar väntar på rättning just nu.
-                    </div>
+                                    ))}
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className="py-4 text-center text-muted small bg-white bg-opacity-50">
+                            Inga inlämningar väntar på rättning just nu.
+                        </div>
+                    )
                 )}
 
                 {/* ANTECKNINGAR SECTION */}
                 {selectedEvent && (
-                    <div className="border-top mt-2">
-                        <div className="px-3 py-2 fw-bold text-secondary border-bottom d-flex align-items-center justify-content-between bg-white bg-opacity-50" style={{fontSize: '0.7rem', letterSpacing: '0.02rem'}}>
+                    <div className="border-top">
+                        <div 
+                            className="px-3 py-2 fw-bold text-secondary border-bottom d-flex align-items-center justify-content-between bg-white bg-opacity-50 cursor-pointer" 
+                            style={{fontSize: '0.7rem', letterSpacing: '0.02rem', cursor: 'pointer'}}
+                            onClick={() => toggleSection('notes')}
+                        >
                             <span><i className="bi bi-journal-text me-2 text-primary"></i>Anteckningar</span>
-                            <span className="badge bg-primary bg-opacity-75 rounded-pill" style={{fontSize: '0.65rem'}}>{lessonLog.length}</span>
+                            <i className={`bi bi-chevron-${sectionsCollapsed.notes ? 'right' : 'down'} opacity-50`}></i>
                         </div>
                         
-                        {lessonLog.length > 0 ? (
-                            <div className="p-3 d-flex flex-column gap-3">
-                                {lessonLog.map(log => (
-                                    <div key={log.id} className="bg-white rounded border-start border-3 border-primary p-3 shadow-sm">
-                                        <div className="d-flex align-items-center gap-2 mb-2">
-                                            <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-normal" style={{fontSize: '0.6rem'}}>Classroom</span>
-                                            {log.state === 'DRAFT' && <span className="badge bg-warning bg-opacity-25 text-dark border-0 fw-normal" style={{fontSize: '0.6rem'}}>Schemalagd</span>}
-                                        </div>
-                                        <div className="small text-dark mb-2 lesson-log-text lh-base">
-                                            <ReactMarkdown>{log.text}</ReactMarkdown>
-                                        </div>
-                                        
-                                        {log.privateNote && (
-                                            <div className="mt-3 p-2 bg-warning bg-opacity-10 border-start border-3 border-warning rounded-end">
-                                                <h6 className="fw-bold text-warning mb-1" style={{fontSize: '0.65rem', letterSpacing: '0.01rem'}}>Mina anteckningar</h6>
-                                                <div className="small text-muted markdown-preview">
-                                                    <ReactMarkdown>{log.privateNote}</ReactMarkdown>
-                                                </div>
+                        {!sectionsCollapsed.notes && (
+                            lessonLog.length > 0 ? (
+                                <div className="p-3 d-flex flex-column gap-3">
+                                    {lessonLog.map(log => (
+                                        <div key={log.id} className="bg-white rounded border-start border-3 border-primary p-3 shadow-sm">
+                                            <div className="d-flex align-items-center gap-2 mb-2">
+                                                <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 fw-normal" style={{fontSize: '0.6rem'}}>Classroom</span>
+                                                {log.state === 'DRAFT' && <span className="badge bg-warning bg-opacity-25 text-dark border-0 fw-normal" style={{fontSize: '0.6rem'}}>Schemalagd</span>}
                                             </div>
-                                        )}
-                                    </div>
-                                ))}
+                                            <div className="small text-dark mb-2 lesson-log-text lh-base">
+                                                <ReactMarkdown>{log.text}</ReactMarkdown>
+                                            </div>
+
+                                            {/* Materials / Documents Pills */}
+                                            {log.materials && log.materials.length > 0 && (
+                                                <div className="d-flex flex-wrap gap-1 mt-2 mb-1">
+                                                    {log.materials.map((m, idx) => {
+                                                        const type = Object.keys(m)[0]; // driveFile, youtubeVideo, link, form
+                                                        const data = m[type];
+                                                        const title = data.title || data.url || "Bilaga";
+                                                        const icon = type === 'driveFile' ? 'bi-file-earmark-text' : 
+                                                                    type === 'youtubeVideo' ? 'bi-youtube' : 
+                                                                    type === 'link' ? 'bi-link-45deg' : 'bi-paperclip';
+                                                        
+                                                        return (
+                                                            <a key={idx} href={data.alternateLink || data.url} target="_blank" rel="noreferrer" 
+                                                            className="badge bg-light text-dark border d-flex align-items-center gap-1 text-decoration-none py-1 px-2"
+                                                            style={{fontSize: '0.6rem', fontWeight: 'normal'}}>
+                                                                <i className={`bi ${icon}`}></i>
+                                                                <span className="text-truncate" style={{maxWidth: '120px'}}>{title}</span>
+                                                            </a>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                            
+                                            {log.privateNote && (
+                                                <div className="mt-3 p-2 bg-warning bg-opacity-10 border-start border-3 border-warning rounded-end">
+                                                    <h6 className="fw-bold text-warning mb-1" style={{fontSize: '0.65rem', letterSpacing: '0.01rem'}}>Mina anteckningar</h6>
+                                                    <div className="small text-muted markdown-preview">
+                                                        <ReactMarkdown>{log.privateNote}</ReactMarkdown>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-4 text-center text-muted small border-bottom bg-white bg-opacity-50">
+                                    Inga anteckningar för denna lektion.
+                                </div>
+                            )
+                        )}
+                    </div>
+                )}
+
+                {/* DEADLINES SECTION */}
+                {selectedEvent && (
+                    <div className="border-top">
+                        <div 
+                            className="px-3 py-2 fw-bold text-secondary border-bottom d-flex align-items-center justify-content-between bg-white bg-opacity-50 cursor-pointer" 
+                            style={{fontSize: '0.7rem', letterSpacing: '0.02rem', cursor: 'pointer'}}
+                            onClick={() => toggleSection('deadlines')}
+                        >
+                            <div className="d-flex align-items-center">
+                                <i className="bi bi-calendar-check me-2 text-danger"></i>
+                                <span>Uppgifter (deadline idag)</span>
+                                {deadlines.length > 0 && <span className="badge bg-danger bg-opacity-75 rounded-pill ms-2" style={{fontSize: '0.65rem'}}>{deadlines.length}</span>}
                             </div>
-                        ) : (
-                            <div className="p-4 text-center text-muted small">
-                                <i className="bi bi-chat-left-dots fs-2 opacity-25 d-block mb-2"></i>
-                                Inga anteckningar för denna lektion.
-                            </div>
+                            <i className={`bi bi-chevron-${sectionsCollapsed.deadlines ? 'right' : 'down'} opacity-50`}></i>
+                        </div>
+                        
+                        {!sectionsCollapsed.deadlines && (
+                            deadlines.length > 0 ? (
+                                <div className="p-3 d-flex flex-column gap-2">
+                                    {deadlines.map(work => (
+                                        <div key={work.id} className="card border-0 shadow-sm p-3 bg-white">
+                                            <div className="d-flex justify-content-between align-items-start mb-1">
+                                                <div className="fw-bold text-dark small lh-sm">
+                                                    {work.title}
+                                                </div>
+                                                <span className="badge bg-light text-dark border rounded-pill flex-shrink-0 ms-2" style={{fontSize: '0.6rem'}}>
+                                                    {work.maxPoints ? `${work.maxPoints} p` : 'Inga poäng'}
+                                                </span>
+                                            </div>
+                                            <div className="text-muted" style={{fontSize: '0.65rem'}}>
+                                                <i className="bi bi-tag me-1"></i>
+                                                {work.topicName || 'Inget ämne'}
+                                            </div>
+                                            <a href={work.alternateLink} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline-light text-primary border-0 p-0 mt-2 text-start d-inline-block" style={{fontSize: '0.65rem'}}>
+                                                Visa i Classroom <i className="bi bi-arrow-right"></i>
+                                            </a>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-4 text-center text-muted small bg-white bg-opacity-50">
+                                    Inga deadlines för denna lektion.
+                                </div>
+                            )
                         )}
                     </div>
                 )}

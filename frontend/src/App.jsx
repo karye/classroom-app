@@ -21,6 +21,7 @@ function App() {
   
   const [currentCourseData, setCurrentCourseData] = useState(null);
   const [allAnnouncements, setAllAnnouncements] = useState({}); 
+  const [allCoursework, setAllCoursework] = useState({}); 
   const [allNotes, setAllNotes] = useState({}); // postId -> content string
   const [allEvents, setAllEvents] = useState([]); 
   const [courseDataLoading, setCourseDataLoading] = useState(false);
@@ -123,6 +124,7 @@ function App() {
               if (cached) {
                   setCurrentCourseData(cached.data);
                   if (cached.data.announcements) setAllAnnouncements(prev => ({ ...prev, [courseId]: cached.data.announcements }));
+                  if (cached.data.coursework) setAllCoursework(prev => ({ ...prev, [courseId]: cached.data.coursework }));
                   const timeStr = new Date(cached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                   setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
                   setCourseDataLoading(false);
@@ -138,6 +140,7 @@ function App() {
 
           setCurrentCourseData(data);
           if (data.announcements) setAllAnnouncements(prev => ({ ...prev, [courseId]: data.announcements }));
+          if (data.coursework) setAllCoursework(prev => ({ ...prev, [courseId]: data.coursework }));
           const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           setLastUpdated(prev => ({ ...prev, [courseId]: timeStr }));
 
@@ -234,6 +237,9 @@ function App() {
           if (courseCached) {
               if (courseCached.data.announcements) {
                   setAllAnnouncements(prev => ({ ...prev, [course.id]: courseCached.data.announcements }));
+              }
+              if (courseCached.data.coursework) {
+                  setAllCoursework(prev => ({ ...prev, [course.id]: courseCached.data.coursework }));
               }
               const timeStr = new Date(courseCached.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               setLastUpdated(prev => ({ ...prev, [course.id]: timeStr }));
@@ -421,6 +427,7 @@ function App() {
                         courses={visibleCoursesList}
                         events={allEvents}
                         allAnnouncements={allAnnouncements}
+                        allCoursework={allCoursework}
                         allNotes={allNotes}
                         refreshTrigger={refreshTriggers.schedule}
                         onUpdate={(time) => setLastUpdated(prev => ({ ...prev, schedule: time }))} 

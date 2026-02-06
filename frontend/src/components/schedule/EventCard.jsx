@@ -1,7 +1,7 @@
 import React from 'react';
 import { isSameDay, parseISO } from 'date-fns';
 
-const EventCard = ({ positionedEvent, allAnnouncements, allNotes, selectedEvent, onClick, todoCountsByCourse }) => {
+const EventCard = ({ positionedEvent, allAnnouncements, allCoursework = {}, allNotes, selectedEvent, onClick, todoCountsByCourse }) => {
     const { event, style } = positionedEvent;
 
     // Helper to extract metadata
@@ -66,12 +66,27 @@ const EventCard = ({ positionedEvent, allAnnouncements, allNotes, selectedEvent,
     // Check if any of THESE announcements have notes in the central state
     const freshNoteCount = dayAnnouncements.filter(ann => allNotes[ann.id] && allNotes[ann.id].trim().length > 0).length;
 
+    // Check for deadlines (Real-time)
+    const courseWork = allCoursework[event.courseId] || [];
+    const freshDeadlineCount = courseWork.filter(work => {
+        if (!work.dueDate) return false;
+        let due;
+        if (typeof work.dueDate === 'string') {
+            due = parseISO(work.dueDate);
+        } else {
+            due = new Date(work.dueDate.year, work.dueDate.month - 1, work.dueDate.day);
+        }
+        return isSameDay(due, eventDate);
+    }).length;
+
     // Use fresh count if available, fallback to backend count if central state for this course is empty
     const finalAnnouncementCount = (courseAnnouncements.length > 0) ? freshAnnouncementCount : (event.announcementCount || 0);
     const finalNoteCount = (courseAnnouncements.length > 0) ? freshNoteCount : (event.noteCount || 0);
+    const finalDeadlineCount = (courseWork.length > 0) ? freshDeadlineCount : 0;
 
     const hasAnnouncements = finalAnnouncementCount > 0;
     const hasNotes = finalNoteCount > 0; 
+    const hasDeadlines = finalDeadlineCount > 0;
 
     // Title logic: Use group name (second row) as primary, fallback to course name
     const displayTitle = group || event.courseName || event.summary;
@@ -91,7 +106,7 @@ const EventCard = ({ positionedEvent, allAnnouncements, allNotes, selectedEvent,
                 transition: 'all 0.1s ease-in-out'
             }}
             onClick={(e) => onClick(event, e)}
-            title={`${event.summary}\n${group ? `Grupp: ${group}` : ''}\n${event.location || ''}\n${hasAnnouncements ? `• ${finalAnnouncementCount} inlägg i flödet\n` : ''}${hasNotes ? `• ${finalNoteCount} loggboksanteckningar\n` : ''}(Klicka för att se uppgifter)`}
+            title={`${event.summary}\n${group ? `Grupp: ${group}` : ''}\n${event.location || ''}\n${hasAnnouncements ? `• ${finalAnnouncementCount} inlägg i flödet\n` : ''}${hasNotes ? `• ${finalNoteCount} loggboksanteckningar\n` : ''}${hasDeadlines ? `• ${finalDeadlineCount} uppgifter med deadline idag\n` : ''}(Klicka för att se uppgifter)`}
         >
             {/* Title (Bold) */}
             <div className="fw-bold text-truncate small lh-1 mb-1" style={{ color: theme.text, fontSize: '0.75rem' }}>
@@ -108,10 +123,13 @@ const EventCard = ({ positionedEvent, allAnnouncements, allNotes, selectedEvent,
             {/* Status Indicators Row (Bottom) */}
             <div className="d-flex align-items-center gap-2 mt-auto pb-0">
                 {hasAnnouncements && (
-                    <i className="bi bi-chat-left-text-fill text-primary" style={{ fontSize: '0.65rem' }} title={`${finalAnnouncementCount} inlägg i flödet`}></i>
+                    <i className="bi bi-journal-text text-primary" style={{ fontSize: '0.65rem' }} title={`${finalAnnouncementCount} inlägg i flödet`}></i>
                 )}
                 {hasNotes && (
                     <i className="bi bi-journal-text text-warning" style={{ fontSize: '0.7rem' }} title={`${finalNoteCount} loggboksanteckningar`}></i>
+                )}
+                {hasDeadlines && (
+                    <i className="bi bi-calendar-check text-danger" style={{ fontSize: '0.65rem' }} title={`${finalDeadlineCount} uppgifter med deadline idag`}></i>
                 )}
                 {todoCount > 0 && (
                     <span className="badge rounded-pill bg-danger border border-white border-1 px-1" style={{ fontSize: '0.55rem', minWidth: '16px' }} title={`${todoCount} inlämningar att rätta`}>

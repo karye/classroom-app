@@ -3,7 +3,17 @@
 Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard".
 
 ## 2026-02-06
+*   **Feature (Schema):** Implementerat uttoning av passerade dagar (70% opacitet) för att förbättra fokus på nuet.
+*   **Feature (Schema):** Lagt till indikator (röd kalenderikon) på lektioner som har uppgifter med deadline samma dag.
+*   **Feature (Sidebar):** Omarbetad sidopanel i Schemat:
+    *   Kollapsbara sektioner för "Att rätta", "Anteckningar" och "Uppgifter".
+    *   Ny sektion "Uppgifter (deadline idag)" som listar relevanta deadlines.
+    *   Material-stöd (piller) för inlägg, med direktlänkar till Drive/YouTube.
+*   **Refactor (Data):** `App.jsx` hämtar och cachar nu `allCoursework` globalt för att stödja deadline-visning i kalendern oberoende av vald kurs.
+*   **Fix:** Korrigerat datumhantering för deadlines så att både API-objekt och databas-strängar hanteras korrekt.
+*   **UI:** Uppdaterat ikoner för att vara enhetliga (använder `bi-journal-text` konsekvent).
 
+## 2026-02-05
 ### ✨ Den Slutgiltiga Unifieringen (Arkitektur & Synk)
 *   **Total Single Source of Truth:** `App.jsx` äger nu all sanning för hela applikationen. Detta inkluderar kalenderhändelser, flödesinlägg, betyg och privata anteckningar. All data delas i realtid mellan alla vyer.
 *   **Intelligent Realtidsmatchning:** Schemavyn (kalendern) räknar nu ut sina egna ikoner för inlägg och anteckningar direkt i webbläsaren. Detta innebär att en synk i flödet omedelbart syns i kalendern utan att schemat behöver laddas om.
@@ -13,7 +23,7 @@ Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard"
 
 ### 🎨 Design & UX (Finputsning)
 *   **Interaktiv Lektionslogg:** Klick på en lektion i schemat öppnar nu en detaljerad "Lektionslogg" i sidopanelen. Här kan läraren läsa Classroom-inlägg och sina egna privata anteckningar sida vid sida med uppgifter som ska rättas.
-*   **Förbättrad Kalenderlayout:** 
+*   **Förbättrad Kalenderlayout:**
     *   Rensat bort tekniska kurskoder från lektionskorten.
     *   Gruppnamn (t.ex. TE23A) används nu som tydlig huvudrubrik.
     *   Markering av vald lektion med tjock svart kant, skalning och skugga.
@@ -29,42 +39,7 @@ Här loggas alla större förändringar i projektet "Classroom Matrix Dashboard"
 
 ---
 
-## 2026-02-05
-
-### ✨ Den Stora Unifieringen (Arkitektur & Data)
-*   **Vattenfallsmodellen (Waterfall Model):** Implementerat en strikt hierarkisk datahämtning: **Lokal Cache (IndexedDB)** ➔ **Backend Databas (SQLite)** ➔ **Google Classroom API**. Detta garanterar snabbhet och robusthet.
-*   **Single Source of Truth:** All data om det valda klassrummet bor nu i ett centralt state i `App.jsx`. Ingen vy har längre sin egen kopia, vilket eliminerar risken för osynkad data.
-*   **Enhetlig Synk-endpoint:** Skapat en "Master API"-rutt (`/details`) som hämtar allt för en kurs samtidigt (Elever, Uppgifter, Betyg, Topics, Flödesinlägg och Betygskategorier).
-*   **Gemensam Cache:** `MatrixView` och `StreamView` delar nu på samma cache-nyckel, vilket innebär att synkning i en vy omedelbart uppdaterar den andra.
-*   **Stöd för Betygskategorier:** Applikationen hämtar och lagrar nu betygskategorier (t.ex. Prov, Uppgift, Övning) för att möjliggöra mer exakt filtrering i Matrisen och Todo-vyn.
-*   **Nuclear Reset:** En ny, stabilare nollställningslogik som sekventiellt raderar och återskapar hela databasstrukturen från grunden för att säkerställa systemets integritet.
-
-### 🎨 Design & UX (Likriktning)
-*   **Enhetlig Statusbar:** All visuell feedback vid synkning och laddning har flyttats till en global `StatusBar` längst ner.
-*   **Statisk EmptyState:** Tagit bort störande animationer mitt på skärmen vid laddning. Vyerna förblir lugna medan statusbaren visar aktivitet.
-*   **Globalt Kursval:** Tagit bort "vyminnet". Samma klassrum förblir nu valt oavsett vilken flik du växlar till, vilket skapar en mer sammanhängande upplevelse.
-*   **Förenklad Navigering:** När du växlar till Schema-vyn bevaras ditt nuvarande kursval i bakgrunden för sömlös återgång.
-*   **Hierarkisk Dashboard (Schema):** Byggt om sidopanelen i kalendern till en tydlig hierarki: **Klassrum ➔ Ämne ➔ Uppgift**.
-*   **Kollapsbara Kursblock:** Lagt till möjligheten att expandera/kollapsa kurser i schemats sidopanel.
-*   **Förbättrad Elevvisning:** Namnpiller i schemat visar nu "Förnamn + Efternamnsinitial" för snabbare identifiering.
-*   **Transparent Synk:** Bekräftelsemodalen för global synk listar nu exakt vilka klassrum som kommer att uppdateras.
-*   **Kategoribaserad Filtrering:** Matrisen och Todo-vyn använder nu faktiska kategorier från Classroom (Prov, Uppgifter, Övningar) istället för att gissa baserat på poäng.
-*   **Smart Visning i Matrisen:** Sifferbetyg visas nu endast för uppgifter i kategorin "Prov". För övriga uppgifter visas tydliga statusikoner.
-
-### 🛠 Arkitektur & Refaktorisering
-*   **Massiv Kodstädning:** Flyttat tung logik från vy-komponenter (`MatrixView`, `StreamView`, `TodoView`) till centrala funktioner i `App.jsx`.
-*   **Backend-utökning:** Lagt till dedikerade tabeller för `announcements` och `grade_categories` i SQLite.
-*   **Robust Felhantering:** Infört förbättrad loggning, timeout-hantering vid reset och mer detaljerade felsökningsutskrifter i både frontend och backend.
-*   **Buggfixar:**
-    *   Åtgärdat "Race Conditions" i kalendersynkningen.
-    *   Fixat buggar där statusbaren fastnade i laddningsläge efter nollställning.
-    *   Löst `ReferenceError` och syntaxfel i de nya unifierade flödena.
-    *   Fixat bugg med felaktig namn-rendering i schemats sidopanel.
-
----
-
 ## 2026-02-03
-
 ### ✨ Nya Funktioner
 *   **Elevregister 2.0 (SchoolSoft-import):**
     *   **Robust Import:** Strikt validering av format (Nr/Klass/Namn) och automatisk detektering av 2- eller 3-kolumnslistor.
@@ -116,7 +91,7 @@ En uppdatering fokuserad på att ge läraren verktyg för att filtrera bort "bru
     *   Uppdateringsknappen i toppmenyn visar nu texten "Synkar..." och blir blå när applikationen arbetar mot Google API, för att tydligt skilja på nätverksaktivitet och lokal filtrering.
 
 ### 🔧 Backend & Arkitektur
-*   **API-utökning:** `/api/todos` och `/api/courses/:id/todos` returnerar nu `maxPoints` för varje uppgift.
+*   **API-utökning:** `/api/todos` och `/api/courses/:id/todos` returnerar nu `maxPoints` for varje uppgift.
 *   **Loggning:** Backend loggar nu en sammanfattning av alla hämtade uppgifter och deras status i serverloggen vid varje anrop, vilket underlättar felsökning.
 *   **DevOps:** Uppdaterat `Dockerfile` och npm-beroenden för att åtgärda säkerhetsvarningar och `deprecated`-meddelanden.
 
@@ -200,202 +175,9 @@ En genomgripande arkitektonisk uppdatering som gör appen redo för stora mängd
     *   Stöd för nästintill obegränsad datamängd (löser "QuotaExceededError").
     *   Asynkron laddning förhindrar att UI låser sig vid stora JSON-objekt.
 *   **Globala Inställningar (Beständiga):**
-    *   Nytt inställningsfönster (Bootstrap 5 Modal) via kugghjul i headern.
+    *   Ny inställningsfönster (Bootstrap 5 Modal) via kugghjul i headern.
     *   **Sökordsfilter:** Dölj uppgifter eller hela ämnen baserat på sökord (t.ex. "Närvaro").
     *   **Server-lagring:** Inställningar sparas i serverns SQLite-databas och synkas mellan enheter.
 *   **Förbättrad Matris-vy:**
     *   **Elevsammanställning:** Klicka på en elev för att se ett snyggt "betygskort" med alla resultat.
     *   **Utskriftsoptimering:** Specifika stilar för utskrift av elevsammanställningar.
-    *   **Profilbilder:** Elevernas foton visas nu direkt i matrisraderna.
-    *   **Layout:** Fixerad kolumnbredd (90px) och stöd för 4 rader text i rubriker.
-*   **Smartare Todo-vy:**
-    *   **Tredelad lista:** Visar nu inte bara "Att rätta", utan även "Klara" och "Ej inlämnade" elever under varje uppgift.
-    *   **Global filtrering:** Respekterar nu även de nya sökordsfiltren.
-
-### 💅 Design & UX
-*   **Animerad Feedback:** Den stora roterande pilen mitt på skärmen (och i headern) ger tydlig respons i alla vyer när data hämtas.
-*   **Svensk Sortering:** Alla listor och matriser sorteras nu strikt enligt svenska regler (`localeCompare('sv')`).
-*   **Enhetlig Stil:** Standardiserad laddningsvy i alla tre huvudmoduler.
-
-### 🔧 Backend & Arkitektur
-*   **Modulär Kod:** `App.jsx` har brutits ut i självständiga komponenter (`MatrixView`, `StreamView`, `TodoView`) som sköter sin egen data.
-*   **Databasutökning:** Ny tabell `settings` i SQLite för användarkonfiguration.
-*   **API-optimering:** Ökat hämtningsgränsen till 50 uppgifter per kurs för att ge en mer komplett bild.
-
----
-
-## [2026-01-30] - "Inbox Zero & UI-ombyggnad"
-
-En omfattande uppdatering med fokus på effektivitet i rättningsarbetet och ett mer strukturerat användargränssnitt.
-
-### 🚀 Nytt & Tillagt
-*   **Total ombyggnad av Todo-vyn:**
-    *   **Tvådelad layout:** Navigeringslista till vänster, detaljerad elevlista till höger.
-    *   **Ämnesgruppering:** Uppgifter grupperas nu efter ämne (Topics) även i Todo-listan.
-    *   **Tangentbordsnavigering:** Fullt stöd för `Pil Upp`/`Ned` för att bläddra mellan uppgifter.
-    *   **Smart Sortering:** Nya knappar för att sortera på datum (stigande/fallande) eller alfabetiskt.
-    *   **Flerdetaljer:** Inkluderar tidsstämpel för inlämning och varningsbadge för sena inlämningar.
-*   **Förbättrad Stream-vy:**
-    *   **Månadsgruppering:** Automatiska avsnitt per månad i flödet.
-    *   **Responsiv Kalender:** Kalendern skalar nu perfekt i sidomenyn oavsett fönsterstorlek.
-    *   **Längre förhandsvisning:** Tre rader text visas nu i kollapsade inlägg.
-*   **Optimerad Cachning:**
-    *   **Manuellt fokus:** Appen laddar nu omedelbart från `localStorage` i alla vyer.
-    *   **Full kontroll:** Automatisk bakgrundsuppdatering borttagen för att spara API-kvot; användaren väljer själv när ny data ska hämtas via "Uppdatera"-knappen.
-    *   **Tidsstämplar:** Uppdateringsknappen visar exakt när datan senast hämtades (vid hovring).
-
-### 💅 Design & UX
-*   **Tvåradigt Sidhuvud:** 
-    *   Övre raden: Enhetlig navigering (Vy-val, Kurs, Uppdatera, Logga ut).
-    *   Undre raden: Vy-specifika kontroller (Sök, Filter, Sortering, Export).
-*   **Minimalistiskt UI:** Tagit bort textetiketter på knappar till förmån för ikoner och tooltips.
-*   **Ultrakompakt elevlista:** Minskad radhöjd och mindre profilbilder för maximal datatäthet.
-*   **Vyminne:** Appen kommer ihåg vilken vy du senast besökte.
-
-### 🔧 Backend & Fixar
-*   **API-utökning:** `/api/todos` aggregerar nu även `topics`, `studentCount` och `late`-status.
-*   **Docker-fix:** Säkerställt att backenden har en giltig `package.json` för isolerade byggen.
-*   **Stabilitet:** Fixat ReferenceErrors och JSX-syntaxfel efter omstrukturering.
-
----
-
-## [2026-01-29] - "Matris Visualisering & UI-fixar"
-
-Fokus låg på att göra matrisvyn mer visuell och logisk i sin hantering av uppgiftsstatusar.
-
-### 🚀 Nytt & Tillagt
-*   **Förbättrad Status-visualisering:**
-    *   **Prov (Poängsatta):** Visar endast siffra (betyg) eller färgkod. Inga ikoner används för att minska bruset.
-        *   Vit bakgrund: Eleven saknas i uppgiften.
-        *   Mintgrön (`#f6ffed`): Eleven har lämnat in men ej fått betyg.
-    *   **Uppgifter (Ej poängsatta):** Använder ikoner och färgkoder.
-        *   <i class="bi bi-check"></i> **Inlämnad:** Enkel bock på mintgrön bakgrund.
-        *   <i class="bi bi-check-all"></i> **Återlämnad:** Dubbelbock på grön bakgrund (`#d9f7be`).
-        *   **Utkast/Påbörjad:** Endast mintgrön bakgrund (ikon borttagen).
-        *   **Saknas:** Vit bakgrund (tidigare röd) för att minska stress.
-*   **Nytt Filter: "Att rätta"**
-    *   En checkbox i menyn som filtrerar matrisen så att endast uppgifter med obehandlade inlämningar visas.
-    *   En indikerings-ikon (`bi-check-circle`) visas i summakolumnen endast när filtret är aktivt.
-*   **Tydligare Summa-kolumn:**
-    *   Bytt rubrikikon till `bi-bag-check` för att bättre symbolisera sammanställning/klartecken.
-    *   Lagt till en tjockare vänsterkant och lätt grå bakgrund för att separera den från uppgifterna.
-*   **Bättre Rubriker:**
-    *   Uppgiftsrubriker tillåter nu **två rader text** innan de klipps av, vilket gör det lättare att läsa långa titlar.
-
-### ✨ Ny Modul: Todo (Att Göra)
-*   **Global Överblick:**
-    *   En ny vy som aggregerar inlämnade uppgifter från *alla* aktiva kurser.
-    *   Visar endast uppgifter som har status `TURNED_IN` (Väntar på rättning).
-*   **Ultrakompakt Design:**
-    *   En enda sorterbar tabell (nyast överst) maximerad för att visa så många rader som möjligt.
-    *   Innehåller: Kurs, Elev, Uppgift, Inlämningstid och Direktlänk.
-*   **Filtrering:**
-    *   Fullt stöd för att filtrera listan via den globala kursväljaren i headern.
-    *   Möjlighet att uppdatera listan manuellt med en "tyst" laddning (ingen blinkande skärm).
-
-### 🐛 Buggfixar
-*   **Stream:** Ökat hämtningsgränsen för inlägget från 20 till 100 för att säkerställa att hela terminens historik syns.
-*   **Krasch:** Åtgärdat ett kritiskt fel där byte mellan vyer med tomt kurs-ID orsakade en krasch i Stream-vyn.
-*   **Navigation:** Fixat så att Todo-vyn hanterar "Alla klassrum" korrekt och inte stör Stream/Matrix-vyerna.
-
----
-
-## [2026-01-28] - "Säkerhet & Gränssnittspolering"
-
-Andra halvan av dagen fokuserades på att göra applikationen säkrare för lärare och mer intuitiv att använda genom förbättrad visuell feedback.
-
-### 🚀 Nytt & Tillagt
-*   **Kryptering av Loggbok:**
-    *   Implementerat full **AES-256-CBC-kryptering** för alla personliga anteckningar.
-    *   Datan krypteras nu unikt per användare (nyckel härleds från en Master Key och Google ID).
-    *   Stöd för transparent dekryptering vid läsning, med fallback för gamla okrypterade anteckningar.
-*   **Export av Loggbok:**
-    *   Lagt till en export-knapp i toppmenyn för Stream-vyn.
-    *   Genererar en strukturerad **Markdown-fil (.md)** som inkluderar både Classroom-inlägg och privata anteckningar.
-    *   Respekterar kalenderfilter för att möjliggöra export av specifika dagars planering.
-
-### 💅 Design & UX
-*   **Svenska Inforutor (Tooltips):**
-    *   Lagt till förklarande texter på svenska på i stort sett alla interaktiva element (ikoner, knappar, statusar).
-*   **Nya Status-ikoner i Matrisen:**
-    *   Bytt ut otydliga symboler mot mer intuitiva:
-        *   **Återlämnad:** Grön dubbelbock (`bi-check-all`).
-        *   **Ej inlämnad:** Rödaktig cirkel med streck (`bi-dash-circle`).
-*   **Visuell Feedback för Rättning:**
-    *   Lagt till en gul varningsikon (<i class="bi bi-exclamation-circle-fill"></i>) i ämnes-summan om det finns nya inlämningar som väntar på bedömning.
-*   **Enhetlig Design:**
-    *   Gjort export-knapparna för Excel (Matrix) och Loggbok (Stream) identiska i stil och placering i headern.
-*   **Lokalisering:**
-    *   Översatt sökfältets placeholder till "Filtrera...".
-
-### 🔧 Backend & Fixar
-*   **Säkerhetsvarning:** Backenden varnar nu vid start om `MASTER_KEY` saknas i miljövyn.
-*   **Buggfix:** Åtgärdat ett syntaxfel i Stream-vyn som orsakade byggfel efter kodomstrukturering.
-
----
-
-## [2026-01-28] - "Stream, Loggbok & Persistence" (Del 1)
-
-### 🚀 Nytt & Tillagt
-*   **Modul: Stream-vy:**
-    *   Implementerat ett kursflöde som hämtar **Announcements** direkt från Google Classroom.
-    *   Lagt till en **Månadskalender** med stöd för **Veckonummer** och filtrering på specifika datum.
-    *   Dagar med inlägg markeras automatiskt i kalendern för snabb navigering.
-*   **Privat Loggbok (Agenda):**
-    *   Möjlighet att skriva personliga anteckningar kopplade till varje inlägg.
-    *   Fullt stöd för **Markdown** (fetstil, listor, länkar).
-    *   **Split-view:** På stora skärmar visas loggboken i en sidopanel bredvid inlägget för optimalt arbetsflöde.
-*   **Persistent Lagring (SQLite):**
-    *   Migrerat från enbart frontend-cache till en **SQLite-databas** på servern.
-    *   Anteckningar sparas säkert per användare (kopplat till unikt Google ID).
-    *   Datan sparas i en persistent Docker-volym (`/data`).
-*   **Matris-förbättringar:**
-    *   **Relativ färgkodning:** Inlämningsstatistik visas nu i en grön-gul-röd skala baserad på klassens "bästa" resultat (istället för bara totalt antal).
-    *   **Ny sortering:** Lagt till "Mest inlämnat" i sorteringsmenyn.
-    *   **Minne:** Appen kommer nu ihåg det senast öppnade klassrummet mellan sessioner.
-
-### 💅 Design & UX
-*   **Kompakt Stream:** Inlägg är nu kollapsbara för att minska scrollande.
-*   **Material Chips:** Bifogat material (Drive-filer, YouTube, länkar) visas som kompakta "chips" istället för stora block.
-*   **Renare UI:** Filter, checkboxar och sorteringsval döljs automatiskt när man växlar från Matrix till Stream.
-*   **Navigering:** Lagt till tydliga ikoner i headern för att växla mellan Matrix- och Stream-modulerna.
-
-### 🔧 Backend & Fixar
-*   **Behörigheter:** Utökat OAuth-scopes för att inkludera `announcements` och `userinfo.profile`.
-*   **Buggfix:** Åtgärdat ett kritiskt fel som fick appen att krascha vid filtrering av uppgiftstyper.
-*   **API:** Skapat nya endpoints för att hantera läsning och skrivning av loggboksanteckningar.
-
----
-
-## [2026-01-22] - "Fullständig Omgörning" (Session 1)
-
-Denna dag markerar en stor milstolpe där applikationen gick från prototyp till en modern, produktionsfärdig Bootstrap-applikation.
-
-### 🚀 Nytt & Tillagt
-*   **Ramverk:** Migrerade hela frontend till **Bootstrap 5** och **Bootstrap Icons**.
-*   **Fullskärmslayout:** Ersatte den gamla kort-vyn med en **Fullskärms-matris** som maximerar skärmytan.
-*   **Navigering:** Lade till en toppmeny med dropdown för kursval, sökfält och verktyg.
-*   **Sticky Headers:** Implementerade låsta rubriker (både horisontellt och vertikalt) så man aldrig tappar bort sig i stora tabeller.
-*   **Tangentbordsstyrning:** Lade till stöd för att navigera och markera elevrader med `Pil Upp` och `Pil Ned`.
-*   **Export:** Lade till en knapp för att exportera aktuell vy till **CSV** (Excel-kompatibel).
-*   **Data:**
-    *   **Tidsstämpel:** Visar nu "Uppdaterad: HH:mm" för att indikera dataålder.
-    *   **Numrering:** Lade till löpnummer (1, 2, 3...) framför elevnamn.
-    *   **Ikoner:** Ersatte textstatusar (t.ex. "CREATED") med ikoner (penna) för renare look.
-
-### 💅 Design & UX
-*   **Ultrakompakt vy:** Halverade radhöjden (padding: 1px) för att få plats med hela klassen på en skärm utan scroll.
-*   **Färgschema:** Uppdaterade betygskurvan till en "gladare" palett:
-    *   🟢 **Godkänt:** Ljusgrön (`#d9f7be`)
-    *   🌳 **Bra:** Gräsgrön (`#95de64`)
-    *   🌲 **Utmärkt:** Mörkgrön (`#52c41a`) med vit text.
-*   **Feedback:** Lade till laddnings-snurror (spinners) istället för texten "Laddar...".
-
-### 🔧 Backend & Fixar
-*   **OAuth Fix:** Löste `redirect_uri_mismatch` genom att göra redirect-URI dynamisk (stödjer nu `.nip.io` och andra nätverksadresser).
-*   **Proxy:** Konfigurerade Nginx att skicka `Host`-headers korrekt.
-*   **Loggning:** Implementerade persistent loggning till fil (`logs/backend/server.log`).
-
-### 📚 Dokumentation
-*   Skapade `INTERFACE_DOC.md` med detaljerad beskrivning av gränssnitt och logik.
-*   Uppdaterade `README.md` med installationsinstruktioner.

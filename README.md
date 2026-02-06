@@ -13,9 +13,11 @@ En fullstack webbapplikation för lärare att visualisera, planera och följa el
 
 ### 📅 Schema & Planering
 *   **Veckovy:** Ett globalt schema som visar lektioner från *alla* dina aktiva kurser samtidigt.
-*   **Smart kalender-synk:** Poängbaserad algoritm matchar lektioner till rätt kurs exakt.
-*   **Interaktiv lektionslogg:** Klicka på en lektion för att läsa Classroom-inlägg och privata anteckningar för just det passet.
-*   **Realtidsmatchning:** Inlägg som synkas i flödet dyker upp som ikoner i schemat omedelbart.
+*   **Fokus på nuet:** Passerade dagar tonas automatiskt ut för att rikta fokus mot dagens och kommande lektioner.
+*   **Smart Dashboard:** Sidopanelen visar automatiskt relevanta uppgifter (deadlines), material och anteckningar för den valda lektionen.
+*   **Deadline-koll:** En röd ikon i schemat varnar direkt om det finns inlämningar med deadline samma dag.
+*   **Interaktiv lektionslogg:** Klicka på en lektion för att se bifogade filer, länkar och privata anteckningar.
+*   **Realtidsmatchning:** Inlägg och deadlines synkas direkt mot schemat.
 
 ### 📝 Stream & Loggbok
 *   **Planering framåt:** Fullt stöd för att se och förbereda anteckningar för schemalagda inlägg.

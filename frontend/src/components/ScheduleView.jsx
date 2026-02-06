@@ -28,7 +28,7 @@ const matchesFilterList = (text, filters) => {
     return filters.some(f => lowText.includes(f.toLowerCase()));
 };
 
-const ScheduleView = ({ courses, events, allAnnouncements, allNotes, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
+const ScheduleView = ({ courses, events, allAnnouncements, allCoursework = {}, allNotes, refreshTrigger, onUpdate, onLoading, excludeFilters = [], excludeTopicFilters = [] }) => {
     const [allPendingTodos, setAllPendingTodos] = useState([]); 
     const [selectedEvent, setSelectedEvent] = useState(null); 
     const [loading, setLoading] = useState(false);
@@ -135,6 +135,7 @@ const ScheduleView = ({ courses, events, allAnnouncements, allNotes, refreshTrig
     };
 
     const navigateWeek = (direction) => {
+        setSelectedEvent(null); // Clear selection when changing week
         if (direction === 'prev') setViewDate(subWeeks(viewDate, 1));
         else if (direction === 'next') setViewDate(addWeeks(viewDate, 1));
         else setViewDate(new Date());
@@ -193,6 +194,7 @@ const ScheduleView = ({ courses, events, allAnnouncements, allNotes, refreshTrig
                                     key={dayIdx}
                                     day={day}
                                     allAnnouncements={allAnnouncements}
+                                    allCoursework={allCoursework}
                                     allNotes={allNotes}
                                     events={getEventsForDay(day)}
                                     selectedEvent={selectedEvent}
@@ -208,6 +210,7 @@ const ScheduleView = ({ courses, events, allAnnouncements, allNotes, refreshTrig
                     recentTodos={displayedTodos} 
                     selectedEvent={selectedEvent}
                     allAnnouncements={allAnnouncements}
+                    allCoursework={allCoursework}
                     allNotes={allNotes}
                     onClearFilter={() => setSelectedEvent(null)}
                 />
